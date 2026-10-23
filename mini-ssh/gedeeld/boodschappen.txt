@@ -1,0 +1,4 @@
+Boodschappen:
+- melk
+- brood
+- kaas

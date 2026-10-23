@@ -26,6 +26,7 @@ terwijl je de code leest.
 | `hallo.cpp`      | Een klein eigen programma dat de server kan starten met `start hallo` |
 | `assistent.cpp`  | Een programma met acties: leest je agenda of je mail (`start assistent mail`) |
 | `mail.txt`       | Een fictieve mailbox voor de assistent |
+| `gedeeld/`       | Voorbeeldmap die de assistent mag laten zien (`start assistent map`) |
 | `SSH-UITLEG.md`  | Uitleg over hoe SSH echt werkt, in gewone taal |
 
 ## Wat er gebeurt
@@ -55,7 +56,7 @@ Open een opdrachtprompt in de map `mini-ssh` en typ:
 g++ server.cpp -o server.exe -lws2_32
 g++ client.cpp -o client.exe -lws2_32
 g++ hallo.cpp -o hallo.exe
-g++ assistent.cpp -o assistent.exe
+g++ -std=c++17 assistent.cpp -o assistent.exe
 ```
 
 Je hoeft `minissh.h` niet apart te bouwen; dat wordt via `#include`
@@ -284,12 +285,75 @@ mailnummer moet echt bestaan. Twee keer controleren (op de server én in het
 programma) heet **defense in depth**: als één controle een fout bevat, houdt
 de andere het nog tegen.
 
+## Een map bekijken: `start assistent map`
+
+De assistent kan ook laten zien wat er in een map staat, maar alleen in de
+map `gedeeld` en de mappen daarin:
+
+```
+mini-ssh> start assistent map
+Inhoud van gedeeld/
+  [map]  fotos
+  [map]  school
+         boodschappen.txt  (36 bytes)
+         ideeen.txt  (71 bytes)
+Kijk in een map met: start assistent map <naam>
+mini-ssh> start assistent map fotos
+Inhoud van gedeeld/fotos/
+         vakantie-2026.txt  (37 bytes)
+         voetbal.txt  (38 bytes)
+```
+
+Zet gerust je eigen bestanden en mappen in `gedeeld`, dan zie je ze meteen.
+
+### Hoe werkt het?
+
+De functie `toonMap()` in `assistent.cpp` gebruikt **`std::filesystem`**, het
+deel van C++ (sinds C++17) voor mappen en bestanden. Daarom bouw je de
+assistent met `-std=c++17`. De belangrijkste onderdelen:
+
+| Code | Wat het doet |
+|------|--------------|
+| `fs::path pad = "gedeeld";` | een pad naar een map of bestand |
+| `basis / "fotos"` | plakt stukken pad aan elkaar: `gedeeld/fotos` |
+| `fs::exists(pad)` | bestaat het? |
+| `fs::is_directory(pad)` | is het een map (en geen bestand)? |
+| `fs::directory_iterator(pad)` | loop door alles wat in de map staat |
+| `item.file_size()` | grootte van een bestand in bytes |
+
+De namen worden eerst in een `std::vector` verzameld en met `std::sort` op
+alfabet gezet, omdat `directory_iterator` ze in een willekeurige volgorde geeft.
+
+### Waarom alleen de map `gedeeld`?
+
+In een pad betekent `..` "de map erboven". Zonder controle zou
+`start assistent map ../../..` uit `gedeeld` klimmen, en dan kan iemand je hele
+schijf bekijken. Dat heet **path traversal**, en het is een van de meest
+gemaakte beveiligingsfouten in servers.
+
+Er zijn daarom drie controles achter elkaar:
+
+1. **De server** laat in argumenten alleen letters en cijfers door, dus `..`
+   en `/` komen er niet eens door.
+2. **De assistent** controleert de mapnaam zelf nog een keer met
+   `isVeiligeMapnaam()`.
+3. **De assistent** vraagt met `fs::canonical()` het echte, volledige pad op,
+   en kijkt of dat nog steeds binnen `gedeeld` ligt. Dit vangt ook trucjes
+   die niet met `..` werken, zoals een snelkoppeling in `gedeeld` die naar
+   `C:\` wijst.
+
+Elke controle zou in zijn eentje al genoeg moeten zijn. Maar als je er later
+per ongeluk één verandert, houden de andere het nog tegen.
+
 ## Dingen om zelf te proberen
 
 - Voeg een eigen commando toe, bijvoorbeeld `hoofdletters <tekst>` dat de
   tekst in hoofdletters terugstuurt (tip: `std::toupper` uit `<cctype>`).
 - Pas `hallo.cpp` aan, bouw het opnieuw en typ `start hallo`. Je hoeft de
   server daarvoor niet opnieuw te starten. Waarom niet?
+- Maak `start assistent lees <map> <bestand>` die een tekstbestand uit
+  `gedeeld` laat zien. Welke controles heb je dan nodig? (Tip: een
+  bestandsnaam heeft een punt, zoals `ideeen.txt`. Hoe ga je daarmee om?)
 - Geef de assistent een nieuwe actie, bijvoorbeeld `start assistent tel`
   die telt hoeveel afspraken en mails je hebt.
 - Maak `agenda vandaag`: laat alleen de regels zien waar de dag van vandaag in

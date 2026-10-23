@@ -7,6 +7,8 @@
 //   assistent agenda       laat je agenda zien (agenda.txt)
 //   assistent mail         overzicht van je mail (mail.txt, fictief)
 //   assistent mail 2       lees mailbericht nummer 2
+//   assistent map          laat zien wat er in de map "gedeeld" staat
+//   assistent map fotos    laat zien wat er in "gedeeld/fotos" staat
 //   assistent              uitleg over wat het programma kan
 //
 // Via mini-SSH start je het met:  start assistent mail 2
@@ -16,7 +18,7 @@
 // Je kunt het ook gewoon zelf in een opdrachtprompt starten om te testen:
 //   assistent.exe mail 2
 //
-// Bouwen op Windows (MinGW):  g++ assistent.cpp -o assistent.exe
+// Bouwen op Windows (MinGW):  g++ -std=c++17 assistent.cpp -o assistent.exe
 // Bouwen op Linux:            g++ assistent.cpp -o assistent
 // =============================================================================
 
@@ -24,11 +26,20 @@
 #include <fstream>   // std::ifstream, bestanden lezen
 #include <string>
 #include <vector>
+#include <filesystem> // std::filesystem: mappen en bestanden bekijken (C++17)
+#include <algorithm>  // std::sort, om de lijst op alfabet te zetten
+
+// std::filesystem is een lange naam; zo mogen we gewoon fs:: schrijven.
+namespace fs = std::filesystem;
 
 // De bestanden staan vast in de code, net als bij het agenda-commando van de
 // server. De gebruiker kan dus nooit een ander bestand laten lezen.
 const std::string AGENDA_BESTAND = "agenda.txt";
 const std::string MAIL_BESTAND   = "mail.txt";
+
+// De enige map die de assistent mag laten zien (plus de mappen daarin).
+// Alles daarbuiten, zoals C:\Windows of je Documenten, blijft verborgen.
+const std::string BASIS_MAP = "gedeeld";
 
 // Een mailbericht: een struct, net als in C.
 struct Mail {
@@ -136,6 +147,98 @@ int toonMail(int argc, char* argv[]) {
 }
 
 // -----------------------------------------------------------------------------
+// Is deze mapnaam veilig? Alleen letters en cijfers.
+//
+// De server controleert dit ook al, maar de assistent doet het zelf nog een
+// keer ("defense in depth"). Waarom is dit zo belangrijk? Omdat ".." in een
+// pad "de map erboven" betekent. Met "map ../../.." zou iemand anders uit
+// de map "gedeeld" kunnen klimmen en je hele schijf bekijken. Dat heet
+// "path traversal". Zonder punten en schuine strepen kan dat niet.
+// -----------------------------------------------------------------------------
+bool isVeiligeMapnaam(const std::string& naam) {
+    if (naam.empty() || naam.size() > 32) return false;
+    for (char c : naam) {
+        bool letter = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+        bool cijfer = (c >= '0' && c <= '9');
+        if (!letter && !cijfer) return false;
+    }
+    return true;
+}
+
+// -----------------------------------------------------------------------------
+// Actie "map": laat zien wat er in een map staat.
+//
+// std::filesystem (C++17) is de standaard manier om met mappen te werken:
+//   fs::path              een pad, zoals "gedeeld/fotos"
+//   fs::exists(pad)       bestaat het?
+//   fs::is_directory(pad) is het een map (en geen bestand)?
+//   fs::directory_iterator(pad)  loop door alles wat in de map staat
+// -----------------------------------------------------------------------------
+int toonMap(int argc, char* argv[]) {
+    fs::path basis = BASIS_MAP;
+    fs::path pad   = basis;
+
+    // Is er een submap gevraagd, zoals "map fotos"?
+    if (argc >= 3) {
+        std::string submap = argv[2];
+        if (!isVeiligeMapnaam(submap)) {
+            std::cout << "Mapnaam '" << submap << "' geweigerd: alleen letters en cijfers.\n";
+            return 1;
+        }
+        pad = basis / submap;   // de / plakt twee stukken pad aan elkaar
+    }
+
+    if (!fs::exists(pad) || !fs::is_directory(pad)) {
+        std::cout << "De map '" << pad.generic_string() << "' bestaat niet.\n";
+        return 1;
+    }
+
+    // Tweede controle: waar komen we ECHT uit? canonical() maakt er een
+    // volledig pad van (zoals C:\Users\Ruben\mini-ssh\gedeeld\fotos) en lost
+    // trucjes als ".." en snelkoppelingen op. Dat pad moet beginnen met het
+    // volledige pad van de basismap, anders weigeren we.
+    std::error_code fout;
+    fs::path echtPad    = fs::canonical(pad, fout);
+    fs::path echteBasis = fs::canonical(basis, fout);
+    if (fout) {
+        std::cout << "Kon de map niet controleren.\n";
+        return 1;
+    }
+    auto [eindeBasis, eindePad] = std::mismatch(echteBasis.begin(), echteBasis.end(),
+                                                echtPad.begin(), echtPad.end());
+    (void)eindePad;   // die hebben we niet nodig
+    if (eindeBasis != echteBasis.end()) {
+        std::cout << "Die map ligt buiten '" << BASIS_MAP << "', dat mag niet.\n";
+        return 1;
+    }
+
+    // Verzamel eerst alle namen, zodat we ze op alfabet kunnen zetten.
+    // (directory_iterator geeft ze in een willekeurige volgorde.)
+    std::vector<std::string> mappen;
+    std::vector<std::string> bestanden;
+    for (const fs::directory_entry& item : fs::directory_iterator(pad)) {
+        std::string naam = item.path().filename().string();
+        if (item.is_directory()) {
+            mappen.push_back(naam);
+        } else {
+            // file_size geeft de grootte in bytes.
+            bestanden.push_back(naam + "  (" + std::to_string(item.file_size()) + " bytes)");
+        }
+    }
+    std::sort(mappen.begin(), mappen.end());
+    std::sort(bestanden.begin(), bestanden.end());
+
+    std::cout << "Inhoud van " << pad.generic_string() << "/\n";
+    for (const std::string& m : mappen)    std::cout << "  [map]  " << m << "\n";
+    for (const std::string& b : bestanden) std::cout << "         " << b << "\n";
+    if (mappen.empty() && bestanden.empty()) std::cout << "  (leeg)\n";
+    if (!mappen.empty() && argc < 3) {
+        std::cout << "Kijk in een map met: start assistent map <naam>\n";
+    }
+    return 0;
+}
+
+// -----------------------------------------------------------------------------
 // main krijgt de argumenten binnen via argc en argv, precies zoals in C:
 //   argc = hoeveel woorden er zijn (de programmanaam telt mee!)
 //   argv = de woorden zelf
@@ -147,15 +250,18 @@ int main(int argc, char* argv[]) {
         std::cout << "Ik ben de assistent. Wat kan ik doen?\n"
                   << "  start assistent agenda      je agenda\n"
                   << "  start assistent mail        overzicht van je mail\n"
-                  << "  start assistent mail <nr>   lees een bericht\n";
+                  << "  start assistent mail <nr>   lees een bericht\n"
+                  << "  start assistent map         inhoud van de map 'gedeeld'\n"
+                  << "  start assistent map <naam>  inhoud van een map daarin\n";
         return 0;
     }
 
     std::string actie = argv[1];
     if (actie == "agenda") return toonAgenda();
     if (actie == "mail")   return toonMail(argc, argv);
+    if (actie == "map")    return toonMap(argc, argv);
 
     // Ook hier: alleen acties die we kennen. Al het andere weigeren we.
-    std::cout << "Onbekende actie '" << actie << "'. Kies 'agenda' of 'mail'.\n";
+    std::cout << "Onbekende actie '" << actie << "'. Kies 'agenda', 'mail' of 'map'.\n";
     return 1;
 }
