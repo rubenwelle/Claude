@@ -28,6 +28,7 @@ terwijl je de code leest.
 | `mail.txt`       | Een fictieve mailbox voor de assistent |
 | `gedeeld/`       | Voorbeeldmap die de assistent mag laten zien (`start assistent map`) |
 | `SSH-UITLEG.md`  | Uitleg over hoe SSH echt werkt, in gewone taal |
+| `SHELL-UITLEG.md` | Hoe echte SSH een command prompt aan de verbinding koppelt (pipes, pty) |
 
 ## Wat er gebeurt
 

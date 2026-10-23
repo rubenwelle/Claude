@@ -247,6 +247,9 @@ shell en koppelt hem aan het kanaal:
 - Alles wat de shell print, gaat versleuteld terug en verschijnt op jouw
   scherm.
 
+Hoe dat koppelen precies werkt (pipes, `CreateProcess`, pseudo-terminals)
+staat uitgebreid in [SHELL-UITLEG.md](SHELL-UITLEG.md).
+
 Over één SSH-verbinding kunnen trouwens meerdere kanalen tegelijk lopen. Zo
 werken ook bestanden kopiëren (`scp`, `sftp`) en "port forwarding" via SSH.
 
