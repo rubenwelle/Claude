@@ -22,6 +22,7 @@ terwijl je de code leest.
 | `minissh.h`      | Gedeelde code: berichten (frames) versturen, Diffie-Hellman, de XOR-versleuteling |
 | `server.cpp`     | Luistert op 127.0.0.1:2222, doet de handshake, controleert het wachtwoord, beantwoordt commando's |
 | `client.cpp`     | Verbindt met de server, doet de handshake, logt in, laat jou commando's typen |
+| `agenda.txt`     | Voorbeeld-agenda die de server voorleest met het commando `agenda` |
 | `SSH-UITLEG.md`  | Uitleg over hoe SSH echt werkt, in gewone taal |
 
 ## Wat er gebeurt
@@ -59,10 +60,11 @@ Op Linux of macOS laat je `-lws2_32` en `.exe` weg.
 
 ## Starten
 
-1. Start in het eerste venster de server: `server.exe`
+1. Start in het eerste venster de server: `server.exe`. Doe dat vanuit de map
+   `mini-ssh`, want daar zoekt de server naar `agenda.txt`.
 2. Start in een tweede venster de client: `client.exe`
 3. Log in met gebruikersnaam **ruben** en wachtwoord **geheim**.
-4. Typ `help` om de commando's te zien.
+4. Typ `help` om de commando's te zien, of `agenda` om je agenda te lezen.
 
 Krijg je een melding van Windows Firewall? Dan mag je op "Annuleren" klikken:
 de server luistert alleen op je eigen computer, dus hij heeft geen toegang tot
@@ -113,11 +115,58 @@ Kort samengevat (de lange versie staat in de uitleg):
   worden zonder dat iemand het merkt.
 - **Wachtwoord in de code.** Een echte server bewaart alleen een hash.
 
+## Zelf een commando toevoegen
+
+Alle commando's zitten in één functie in `server.cpp`: `voerCommandoUit()`.
+Zo werkt die:
+
+1. De client stuurt een regel tekst, bijvoorbeeld `echo hallo wereld`.
+2. De server splitst die in het **commando** (het eerste woord, `echo`) en de
+   **rest** (`hallo wereld`).
+3. Daarna volgt een rij `if`'s: `if (commando == "help")`,
+   `if (commando == "echo")`, enzovoort.
+4. Wat de functie teruggeeft met `return`, stuurt de server versleuteld naar
+   de client, en de client print het.
+
+Een nieuw commando is dus één nieuw `if`-blok. Bijvoorbeeld:
+
+```cpp
+if (commando == "hoi") {
+    return "Hoi " + gebruiker + "!";
+}
+```
+
+Zet het tussen de andere `if`'s, vóór de laatste regel ("Onbekend
+commando"), voeg een regel toe aan de help-tekst, en compileer de server
+opnieuw. De client hoef je niet aan te passen: die stuurt gewoon door wat je
+typt.
+
+### Voorbeeld: het commando `agenda`
+
+`agenda` is zo'n zelfgemaakt commando. Het roept de functie `leesAgenda()` aan,
+die het bestand `agenda.txt` opent met `std::ifstream`, het regel voor regel
+leest, en de hele inhoud als één tekst teruggeeft. Bestaat het bestand niet,
+dan krijg je een nette melding in plaats van een crash.
+
+Je kunt `agenda.txt` gewoon in Kladblok aanpassen. Je hoeft de server daarna
+niet opnieuw te starten: hij leest het bestand elke keer opnieuw als je
+`agenda` typt.
+
+Let op de bestandsnaam: die staat vast in de code (`AGENDA_BESTAND`). Je zou
+het commando ook `lees <bestandsnaam>` kunnen maken, maar dan kan iedereen die
+kan inloggen elk bestand op de server opvragen, bijvoorbeeld met
+`lees ../../wachtwoorden.txt`. Een vaste naam is veiliger. Echte servers lossen
+dit op met gebruikersrechten: je mag alleen de bestanden lezen waar je
+account toegang toe heeft.
+
 ## Dingen om zelf te proberen
 
-- Voeg een eigen commando toe aan `voerCommandoUit()` in `server.cpp`,
-  bijvoorbeeld `hoofdletters <tekst>` dat de tekst in hoofdletters terugstuurt.
+- Voeg een eigen commando toe, bijvoorbeeld `hoofdletters <tekst>` dat de
+  tekst in hoofdletters terugstuurt (tip: `std::toupper` uit `<cctype>`).
+- Maak `agenda vandaag`: laat alleen de regels zien waar de dag van vandaag in
+  staat (tip: zoek met `regel.find(...)`).
 - Verander in `client.cpp` het label `"client->server"` in iets anders.
   Wat gebeurt er dan met wat de server ontvangt? Waarom?
 - Kijk met Wireshark mee op de loopback-adapter (filter `tcp.port == 2222`)
-  en zoek de versie-tekst en de getallen A en B op.
+  en zoek de versie-tekst en de getallen A en B op. Typ `agenda` en kijk of je
+  iets van je afspraken terugziet. (Spoiler: nee.)

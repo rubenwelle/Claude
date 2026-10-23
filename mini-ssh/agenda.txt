@@ -1,0 +1,13 @@
+Agenda van Ruben
+================
+
+Maandag 26 oktober
+  09:00  Werk
+  19:30  Voetbaltraining
+
+Woensdag 28 oktober
+  14:00  Tandarts
+  20:00  C++ oefenen: eigen commando toevoegen aan mini-SSH
+
+Vrijdag 30 oktober
+  18:00  Etentje met vrienden
