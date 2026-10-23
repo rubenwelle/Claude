@@ -192,6 +192,13 @@ poort 2222 praat, je hele account in handen krijgt. De vaste lijst met
 programma's is juist de veilige middenweg: je ziet het idee (programma
 starten, output terug, versleuteld), zonder de deur helemaal open te zetten.
 
+## 7. Probeer het zelf: `sessie`
+
+In mini-SSH zit een veilige versie hiervan. Typ `sessie`, en de server start
+de assistent met twee pipes (zie `pijpen.h`), precies zoals hierboven, maar
+met de assistent in plaats van `cmd.exe`. Hoe het werkt staat in de README,
+onder "Een gesprek via pipes".
+
 ---
 
 ## Samengevat
