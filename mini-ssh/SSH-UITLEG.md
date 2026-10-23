@@ -252,11 +252,17 @@ werken ook bestanden kopiëren (`scp`, `sftp`) en "port forwarding" via SSH.
 
 **In jouw mini-versie:** de server start bewust **geen** echte shell. Hij kent
 alleen een paar ingebouwde commando's (`help`, `echo`, `tijd`, `agenda`,
-`whoami`, `exit`). Het commando `agenda` leest een tekstbestand op de server
-en stuurt de inhoud versleuteld terug. Bij echte SSH zou je daarvoor
-gewoon `type agenda.txt` (Windows) of `cat agenda.txt` (Linux) in de shell
-typen. Zo kan het programma niets op je computer veranderen, ook niet als je
-een foutje maakt. Wel zie je het belangrijkste idee: commando heen, antwoord
+`programmas`, `start`, `whoami`, `exit`). Het commando `agenda` leest een
+tekstbestand op de server en stuurt de inhoud versleuteld terug. Bij echte SSH
+zou je daarvoor gewoon `type agenda.txt` (Windows) of `cat agenda.txt` (Linux)
+in de shell typen.
+
+Met `start` kan de server wel een programma draaien en de output terugsturen,
+maar alleen programma's van een vaste lijst. Hij gebruikt daarvoor `popen()`,
+wat in feite hetzelfde is als wat een echte SSH-server doet, maar dan voor
+één programma in plaats van een hele shell. Door de vaste lijst kan het
+programma niets onverwachts op je computer doen, ook niet als je een foutje
+maakt. Wel zie je het belangrijkste idee: commando heen, antwoord
 terug, alles versleuteld.
 
 ---
@@ -273,7 +279,7 @@ terug, alles versleuteld.
 | Versleuteling | ChaCha20 of AES | XOR met simpele random-generator |
 | Knoeien ontdekken | MAC | ontbreekt |
 | Inloggen | wachtwoord (hash) of sleutelpaar | wachtwoord als tekst in de code |
-| Sessie | echte shell, meerdere kanalen | zes ingebouwde commando's |
+| Sessie | echte shell, meerdere kanalen | ingebouwde commando's + programma's van een vaste lijst |
 
 ## Volgende stappen als je verder wilt
 
