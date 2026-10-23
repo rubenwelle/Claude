@@ -23,6 +23,7 @@ terwijl je de code leest.
 | `server.cpp`     | Luistert op 127.0.0.1:2222, doet de handshake, controleert het wachtwoord, beantwoordt commando's |
 | `client.cpp`     | Verbindt met de server, doet de handshake, logt in, laat jou commando's typen |
 | `agenda.txt`     | Voorbeeld-agenda die de server voorleest met het commando `agenda` |
+| `hallo.cpp`      | Een klein eigen programma dat de server kan starten met `start hallo` |
 | `SSH-UITLEG.md`  | Uitleg over hoe SSH echt werkt, in gewone taal |
 
 ## Wat er gebeurt
@@ -51,6 +52,7 @@ Open een opdrachtprompt in de map `mini-ssh` en typ:
 ```
 g++ server.cpp -o server.exe -lws2_32
 g++ client.cpp -o client.exe -lws2_32
+g++ hallo.cpp -o hallo.exe
 ```
 
 Je hoeft `minissh.h` niet apart te bouwen; dat wordt via `#include`
@@ -64,7 +66,8 @@ Op Linux of macOS laat je `-lws2_32` en `.exe` weg.
    `mini-ssh`, want daar zoekt de server naar `agenda.txt`.
 2. Start in een tweede venster de client: `client.exe`
 3. Log in met gebruikersnaam **ruben** en wachtwoord **geheim**.
-4. Typ `help` om de commando's te zien, of `agenda` om je agenda te lezen.
+4. Typ `help` om de commando's te zien, `agenda` om je agenda te lezen, of
+   `start hallo` om een programma te starten.
 
 Krijg je een melding van Windows Firewall? Dan mag je op "Annuleren" klikken:
 de server luistert alleen op je eigen computer, dus hij heeft geen toegang tot
@@ -159,10 +162,64 @@ kan inloggen elk bestand op de server opvragen, bijvoorbeeld met
 dit op met gebruikersrechten: je mag alleen de bestanden lezen waar je
 account toegang toe heeft.
 
+## Programma's starten met `start`
+
+Met `start <naam>` laat je de server een programma draaien, en zie je in de
+client alles wat dat programma print. Typ `programmas` om te zien welke namen
+mogen:
+
+```
+mini-ssh> programmas
+Programma's die je mag starten met 'start <naam>':
+  bestanden   (dir /b)
+  datum   (date /t)
+  hallo   (hallo.exe)
+  systeem   (ver)
+mini-ssh> start hallo
+Hallo! Ik ben hallo.exe, en ik draai op de server.
+Alles wat ik print, gaat versleuteld terug naar de client.
+1 + 2 + ... + 10 = 55
+```
+
+### Hoe werkt het?
+
+De functie `startProgramma()` in `server.cpp` gebruikt `popen()` (op Windows
+heet die `_popen()`). Die start een programma en geeft je een `FILE*` terug,
+precies zoals `fopen()` in C. Het verschil: je leest niet uit een bestand,
+maar uit wat het programma print. Met `fgets()` lees je die output stukje voor
+stukje, en `pclose()` wacht tot het programma klaar is. De server plakt alle
+output aan elkaar en stuurt hem versleuteld naar de client.
+
+### Waarom een vaste lijst?
+
+Je zou ook alles kunnen uitvoeren wat de client stuurt. Maar dan kan iedereen
+die kan inloggen ook `del /s /q C:\*` sturen, en die opdracht voert de server
+dan gewoon uit. Dat heet **command injection**. Daarom zoekt de server de naam
+op in een vaste lijst, `TOEGESTANE_PROGRAMMAS`. De client stuurt alleen een
+naam, en kan nooit zelf een opdracht in elkaar zetten: `start datum & del ...`
+wordt geweigerd, omdat `datum & del ...` niet op de lijst staat.
+
+Echte SSH kent zo'n lijst niet: je krijgt een volledige shell, en de
+beveiliging zit in je gebruikersaccount. Je kunt alleen doen wat dat account
+mag.
+
+### Zelf een programma toevoegen
+
+1. Schrijf en bouw je programma, bijvoorbeeld `g++ mijnprog.cpp -o mijnprog.exe`.
+2. Zet het `.exe`-bestand in de map `mini-ssh`, waar ook de server draait.
+3. Voeg in `server.cpp` een regel toe aan `TOEGESTANE_PROGRAMMAS`:
+   `{ "mijnprog", "mijnprog.exe" },`
+4. Bouw de server opnieuw en start hem opnieuw.
+
+Je programma mag niet om invoer vragen (zoals `std::cin`), want er zit
+niemand aan het toetsenbord van de server. De server wacht dan voor altijd.
+
 ## Dingen om zelf te proberen
 
 - Voeg een eigen commando toe, bijvoorbeeld `hoofdletters <tekst>` dat de
   tekst in hoofdletters terugstuurt (tip: `std::toupper` uit `<cctype>`).
+- Pas `hallo.cpp` aan, bouw het opnieuw en typ `start hallo`. Je hoeft de
+  server daarvoor niet opnieuw te starten. Waarom niet?
 - Maak `agenda vandaag`: laat alleen de regels zien waar de dag van vandaag in
   staat (tip: zoek met `regel.find(...)`).
 - Verander in `client.cpp` het label `"client->server"` in iets anders.

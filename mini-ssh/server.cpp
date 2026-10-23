@@ -10,9 +10,11 @@
 //   5. Inloggen: gebruikersnaam en wachtwoord controleren.
 //   6. Opdrachten van de client uitvoeren en antwoord terugsturen.
 //
-// Om het veilig te houden voert deze server GEEN echte opdrachten op je
-// computer uit. Hij kent alleen een paar ingebouwde commando's (help, echo,
-// tijd, agenda, whoami, exit). Een echte SSH-server start hier een shell.
+// Om het veilig te houden start deze server GEEN shell waarin je alles kunt
+// typen. Hij kent alleen een paar ingebouwde commando's (help, echo, tijd,
+// agenda, programmas, start, whoami, exit). Met "start" kun je een programma
+// laten draaien, maar alleen als het op een vaste lijst staat.
+// Een echte SSH-server start op deze plek een shell.
 //
 // Bouwen op Windows (MinGW):  g++ server.cpp -o server.exe -lws2_32
 // Bouwen op Linux:            g++ server.cpp -o server
@@ -21,6 +23,8 @@
 #include "minissh.h"
 #include <ctime>     // std::time, voor het "tijd"-commando
 #include <fstream>   // std::ifstream, om een bestand te lezen (voor "agenda")
+#include <cstdio>    // popen/_popen, fgets: een programma starten en lezen
+#include <map>       // std::map, een "woordenboek" van naam -> waarde
 
 // Het agenda-bestand op de server. Dit is een vaste naam: de client kan NIET
 // zelf kiezen welk bestand de server leest. Zou je dat wel toestaan (bijv.
@@ -57,6 +61,103 @@ std::string leesAgenda() {
         inhoud = inhoud.substr(0, 60000) + "\n... (agenda te lang, rest weggelaten)";
     }
     return inhoud;
+}
+
+// -----------------------------------------------------------------------------
+// Programma's starten: de lijst van wat MAG.
+//
+// Dit is een "whitelist": een lijst van toegestane programma's. De client
+// stuurt alleen een korte naam (bijv. "datum"), en de server zoekt in deze
+// lijst op welk programma daarbij hoort. Staat de naam er niet in, dan
+// gebeurt er niets.
+//
+// Waarom zo? Als de server zomaar uitvoert wat de client stuurt, kan iemand
+// die kan inloggen ook "del /s /q C:\*" sturen. Dat heet "command
+// injection" en is een van de bekendste beveiligingsfouten. Met een vaste
+// lijst kan de client nooit zelf een opdracht in elkaar zetten.
+//
+// Windows en Linux hebben andere programma's, dus kiezen we met #ifdef.
+// Een eigen programma toevoegen = één regel erbij in deze lijst.
+// -----------------------------------------------------------------------------
+const std::map<std::string, std::string> TOEGESTANE_PROGRAMMAS = {
+#ifdef _WIN32
+    //  naam die je typt    programma dat de server echt start
+    { "datum",      "date /t" },     // de datum van vandaag
+    { "bestanden",  "dir /b" },      // de bestanden in de map van de server
+    { "systeem",    "ver" },         // welke Windows-versie
+    { "hallo",      "hallo.exe" },   // je eigen programma (zie hallo.cpp)
+#else
+    { "datum",      "date" },
+    { "bestanden",  "ls" },
+    { "systeem",    "uname -a" },
+    { "hallo",      "./hallo" },
+#endif
+};
+
+// Op Windows heten deze functies _popen en _pclose, op Linux popen en pclose.
+// Deze truc zorgt dat we in de rest van de code één naam kunnen gebruiken.
+#ifdef _WIN32
+    #define popen  _popen
+    #define pclose _pclose
+#endif
+
+// -----------------------------------------------------------------------------
+// Start een programma en vang alles op wat het print (de "output").
+//
+// popen() start het programma en geeft je een FILE*, net als fopen() in C.
+// Alleen lees je nu niet uit een bestand, maar uit wat het programma print.
+// "r" betekent: wij willen LEZEN wat het programma schrijft.
+// -----------------------------------------------------------------------------
+std::string startProgramma(const std::string& naam) {
+    // Zoek de naam op in de lijst. find() geeft end() als hij er niet is.
+    auto gevonden = TOEGESTANE_PROGRAMMAS.find(naam);
+    if (gevonden == TOEGESTANE_PROGRAMMAS.end()) {
+        return "Programma '" + naam + "' staat niet op de lijst. "
+               "Typ 'programmas' om te zien wat mag.";
+    }
+    // gevonden->first is de naam, gevonden->second het echte programma.
+    // " 2>&1" betekent: stuur ook foutmeldingen naar dezelfde output, zodat
+    // je bijvoorbeeld "hallo.exe niet gevonden" ook in de client ziet.
+    std::string opdracht = gevonden->second + " 2>&1";
+
+    FILE* uitvoer = popen(opdracht.c_str(), "r");
+    if (uitvoer == nullptr) {
+        return "Kon het programma niet starten.";
+    }
+
+    // Lees de output stukje voor stukje, net als een bestand met fgets().
+    std::string resultaat;
+    char buffer[256];
+    while (fgets(buffer, sizeof(buffer), uitvoer) != nullptr) {
+        resultaat += buffer;
+        if (resultaat.size() > 60000) {   // een frame mag max. 64 KB zijn
+            resultaat += "\n... (te veel output, rest weggelaten)";
+            break;
+        }
+    }
+    // pclose() wacht tot het programma klaar is en geeft de "exit code":
+    // 0 betekent meestal "alles ging goed".
+    int exitCode = pclose(uitvoer);
+
+    // Haal de laatste enter weg, die zet de client er zelf al achter.
+    while (!resultaat.empty() && (resultaat.back() == '\n' || resultaat.back() == '\r')) {
+        resultaat.pop_back();
+    }
+    if (resultaat.empty()) resultaat = "(het programma printte niets)";
+    if (exitCode != 0) {
+        resultaat += "\n(exit code: " + std::to_string(exitCode) + ")";
+    }
+    return resultaat;
+}
+
+// De lijst van toegestane programma's als tekst, voor het commando "programmas".
+std::string lijstProgrammas() {
+    std::string tekst = "Programma's die je mag starten met 'start <naam>':";
+    // Loop door de map: elk element heeft een .first (naam) en .second.
+    for (const auto& programma : TOEGESTANE_PROGRAMMAS) {
+        tekst += "\n  " + programma.first + "   (" + programma.second + ")";
+    }
+    return tekst;
 }
 
 // De enige gebruiker die mag inloggen. In het echt staan wachtwoorden niet
@@ -96,6 +197,8 @@ std::string voerCommandoUit(const std::string& regel, const std::string& gebruik
                "  echo <tekst>  stuur de tekst terug\n"
                "  tijd          de tijd op de server\n"
                "  agenda        je agenda (agenda.txt op de server)\n"
+               "  programmas    welke programma's je mag starten\n"
+               "  start <naam>  start een programma en toon de output\n"
                "  whoami        als wie ben je ingelogd\n"
                "  exit          verbinding verbreken";
     }
@@ -111,6 +214,12 @@ std::string voerCommandoUit(const std::string& regel, const std::string& gebruik
     }
     if (commando == "agenda") {
         return leesAgenda();
+    }
+    if (commando == "programmas") {
+        return lijstProgrammas();
+    }
+    if (commando == "start") {
+        return startProgramma(rest);
     }
     if (commando == "whoami") {
         return gebruiker;
