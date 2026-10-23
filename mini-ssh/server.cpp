@@ -25,6 +25,7 @@
 #include <fstream>   // std::ifstream, om een bestand te lezen (voor "agenda")
 #include <cstdio>    // popen/_popen, fgets: een programma starten en lezen
 #include <map>       // std::map, een "woordenboek" van naam -> waarde
+#include <vector>    // std::vector, een lijst die kan groeien (voor argumenten)
 
 // Het agenda-bestand op de server. Dit is een vaste naam: de client kan NIET
 // zelf kiezen welk bestand de server leest. Zou je dat wel toestaan (bijv.
@@ -86,11 +87,13 @@ const std::map<std::string, std::string> TOEGESTANE_PROGRAMMAS = {
     { "bestanden",  "dir /b" },      // de bestanden in de map van de server
     { "systeem",    "ver" },         // welke Windows-versie
     { "hallo",      "hallo.exe" },   // je eigen programma (zie hallo.cpp)
+    { "assistent",  "assistent.exe" },  // leest agenda en mail (assistent.cpp)
 #else
     { "datum",      "date" },
     { "bestanden",  "ls" },
     { "systeem",    "uname -a" },
     { "hallo",      "./hallo" },
+    { "assistent",  "./assistent" },
 #endif
 };
 
@@ -99,7 +102,37 @@ const std::map<std::string, std::string> TOEGESTANE_PROGRAMMAS = {
 #ifdef _WIN32
     #define popen  _popen
     #define pclose _pclose
+#else
+    #include <sys/wait.h>   // WEXITSTATUS, zie startProgramma()
 #endif
+
+// -----------------------------------------------------------------------------
+// Is dit argument veilig om aan een programma mee te geven?
+//
+// Een argument is extra informatie achter de programmanaam, zoals "mail" en
+// "2" in "start assistent mail 2". Het programma krijgt die binnen via
+// argc/argv (zie assistent.cpp).
+//
+// Het gevaar: popen() geeft de opdracht aan de shell (cmd op Windows). En de
+// shell kent speciale tekens: & betekent "doe daarna nog een opdracht",
+// > betekent "schrijf naar een bestand", | koppelt programma's aan elkaar.
+// Als iemand "start assistent mail & del agenda.txt" stuurt en we plakken dat
+// zomaar achter de opdracht, voert cmd ook "del agenda.txt" uit!
+//
+// De oplossing: we laten alleen letters en cijfers toe. Daar zit geen enkel
+// speciaal teken tussen, dus de shell kan er niets anders van maken. Dit heet
+// ook wel een whitelist voor tekens: we zeggen wat MAG, niet wat niet mag.
+// (Een lijst van verboden tekens is gevaarlijk: je vergeet er altijd één.)
+// -----------------------------------------------------------------------------
+bool isVeiligArgument(const std::string& argument) {
+    if (argument.empty() || argument.size() > 32) return false;
+    for (char c : argument) {
+        bool letter = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+        bool cijfer = (c >= '0' && c <= '9');
+        if (!letter && !cijfer) return false;
+    }
+    return true;
+}
 
 // -----------------------------------------------------------------------------
 // Start een programma en vang alles op wat het print (de "output").
@@ -107,18 +140,50 @@ const std::map<std::string, std::string> TOEGESTANE_PROGRAMMAS = {
 // popen() start het programma en geeft je een FILE*, net als fopen() in C.
 // Alleen lees je nu niet uit een bestand, maar uit wat het programma print.
 // "r" betekent: wij willen LEZEN wat het programma schrijft.
+//
+// 'regel' is alles na "start", bijvoorbeeld "assistent mail 2". Het eerste
+// woord is de programmanaam, de rest zijn argumenten.
 // -----------------------------------------------------------------------------
-std::string startProgramma(const std::string& naam) {
+std::string startProgramma(const std::string& regel) {
+    // Splits op spaties. std::istringstream leest woord voor woord, net als
+    // std::cin, maar dan uit een string.
+    std::istringstream woorden(regel);
+    std::string naam;
+    woorden >> naam;
+    std::vector<std::string> argumenten;
+    std::string woord;
+    while (woorden >> woord) {
+        argumenten.push_back(woord);
+    }
+
     // Zoek de naam op in de lijst. find() geeft end() als hij er niet is.
     auto gevonden = TOEGESTANE_PROGRAMMAS.find(naam);
     if (gevonden == TOEGESTANE_PROGRAMMAS.end()) {
         return "Programma '" + naam + "' staat niet op de lijst. "
                "Typ 'programmas' om te zien wat mag.";
     }
+
+    // Controleer elk argument VOORDAT we iets starten.
+    if (argumenten.size() > 3) {
+        return "Te veel argumenten (maximaal 3).";
+    }
+    for (const std::string& argument : argumenten) {
+        if (!isVeiligArgument(argument)) {
+            return "Argument '" + argument + "' geweigerd: alleen letters en "
+                   "cijfers zijn toegestaan.";
+        }
+    }
+
+    // Nu pas de opdracht in elkaar zetten: het echte programma uit de lijst,
+    // plus de (gecontroleerde) argumenten met een spatie ertussen.
     // gevonden->first is de naam, gevonden->second het echte programma.
+    std::string opdracht = gevonden->second;
+    for (const std::string& argument : argumenten) {
+        opdracht += " " + argument;
+    }
     // " 2>&1" betekent: stuur ook foutmeldingen naar dezelfde output, zodat
     // je bijvoorbeeld "hallo.exe niet gevonden" ook in de client ziet.
-    std::string opdracht = gevonden->second + " 2>&1";
+    opdracht += " 2>&1";
 
     FILE* uitvoer = popen(opdracht.c_str(), "r");
     if (uitvoer == nullptr) {
@@ -138,6 +203,11 @@ std::string startProgramma(const std::string& naam) {
     // pclose() wacht tot het programma klaar is en geeft de "exit code":
     // 0 betekent meestal "alles ging goed".
     int exitCode = pclose(uitvoer);
+#ifndef _WIN32
+    // Op Linux zit de exit code "ingepakt" in een groter getal (1 wordt 256).
+    // WEXITSTATUS pakt hem weer uit. Windows geeft hem meteen goed terug.
+    if (WIFEXITED(exitCode)) exitCode = WEXITSTATUS(exitCode);
+#endif
 
     // Haal de laatste enter weg, die zet de client er zelf al achter.
     while (!resultaat.empty() && (resultaat.back() == '\n' || resultaat.back() == '\r')) {
@@ -152,7 +222,7 @@ std::string startProgramma(const std::string& naam) {
 
 // De lijst van toegestane programma's als tekst, voor het commando "programmas".
 std::string lijstProgrammas() {
-    std::string tekst = "Programma's die je mag starten met 'start <naam>':";
+    std::string tekst = "Programma's die je mag starten met 'start <naam> [argumenten]':";
     // Loop door de map: elk element heeft een .first (naam) en .second.
     for (const auto& programma : TOEGESTANE_PROGRAMMAS) {
         tekst += "\n  " + programma.first + "   (" + programma.second + ")";
@@ -198,7 +268,9 @@ std::string voerCommandoUit(const std::string& regel, const std::string& gebruik
                "  tijd          de tijd op de server\n"
                "  agenda        je agenda (agenda.txt op de server)\n"
                "  programmas    welke programma's je mag starten\n"
-               "  start <naam>  start een programma en toon de output\n"
+               "  start <naam> [argumenten]\n"
+               "                start een programma en toon de output\n"
+               "                (bijv. 'start assistent mail')\n"
                "  whoami        als wie ben je ingelogd\n"
                "  exit          verbinding verbreken";
     }

@@ -24,6 +24,8 @@ terwijl je de code leest.
 | `client.cpp`     | Verbindt met de server, doet de handshake, logt in, laat jou commando's typen |
 | `agenda.txt`     | Voorbeeld-agenda die de server voorleest met het commando `agenda` |
 | `hallo.cpp`      | Een klein eigen programma dat de server kan starten met `start hallo` |
+| `assistent.cpp`  | Een programma met acties: leest je agenda of je mail (`start assistent mail`) |
+| `mail.txt`       | Een fictieve mailbox voor de assistent |
 | `SSH-UITLEG.md`  | Uitleg over hoe SSH echt werkt, in gewone taal |
 
 ## Wat er gebeurt
@@ -53,6 +55,7 @@ Open een opdrachtprompt in de map `mini-ssh` en typ:
 g++ server.cpp -o server.exe -lws2_32
 g++ client.cpp -o client.exe -lws2_32
 g++ hallo.cpp -o hallo.exe
+g++ assistent.cpp -o assistent.exe
 ```
 
 Je hoeft `minissh.h` niet apart te bouwen; dat wordt via `#include`
@@ -214,12 +217,81 @@ mag.
 Je programma mag niet om invoer vragen (zoals `std::cin`), want er zit
 niemand aan het toetsenbord van de server. De server wacht dan voor altijd.
 
+## Een programma met acties: de assistent
+
+`assistent.exe` is een programma dat verschillende dingen kan doen. Welke
+actie, dat geef je mee als **argument** achter de naam:
+
+```
+mini-ssh> start assistent mail
+Je hebt 3 berichten:
+  1. Verjaardag zondag   (van Opa)
+  2. Training gaat niet door   (van Voetbalclub)
+  3. Hoe gaat het met C++?   (van Lisa)
+Lees een bericht met: start assistent mail <nummer>
+mini-ssh> start assistent mail 3
+Van:       Lisa
+Onderwerp: Hoe gaat het met C++?
+...
+mini-ssh> start assistent agenda
+Agenda van Ruben
+...
+```
+
+De mail is fictief: hij staat gewoon in `mail.txt`. Pas dat bestand gerust
+aan. Berichten worden gescheiden door een regel met alleen `---`.
+
+### Hoe komen de argumenten bij het programma?
+
+1. Jij typt `start assistent mail 3`.
+2. De server splitst dat in de naam `assistent` en de argumenten `mail` en `3`.
+3. De server zoekt `assistent` op in de vaste lijst, en maakt er de opdracht
+   `assistent.exe mail 3` van.
+4. `popen()` start die opdracht. Het programma krijgt de woorden binnen in
+   `main(int argc, char* argv[])`, precies zoals in C: `argv[1]` is `"mail"`
+   en `argv[2]` is `"3"`.
+5. Het programma kiest met een `if` welke actie het uitvoert, en print het
+   resultaat. Dat gaat versleuteld terug naar jou.
+
+Je kunt de assistent ook zonder server testen: typ in een opdrachtprompt
+`assistent.exe mail 3`.
+
+### Argumenten veilig doorgeven
+
+Dit is het lastige deel. `popen()` geeft de opdracht aan de shell (`cmd` op
+Windows), en de shell kent speciale tekens:
+
+| Teken | Betekenis voor de shell |
+|-------|-------------------------|
+| `&`   | doe daarna nog een opdracht |
+| `>`   | schrijf de output naar een bestand (en overschrijf het!) |
+| `\|`  | stuur de output door naar een ander programma |
+
+Als de server zomaar achter de opdracht plakt wat jij typt, dan maakt
+`start assistent mail & del agenda.txt` er `assistent.exe mail & del agenda.txt`
+van, en voert cmd **twee** opdrachten uit. Weg agenda.
+
+Daarom controleert de server elk argument met `isVeiligArgument()`: alleen
+letters en cijfers mogen, maximaal 32 tekens, en maximaal 3 argumenten.
+Daar zit geen enkel speciaal teken tussen, dus de shell kan er niets anders
+van maken. Let op het principe: we zeggen wat **mag** (letters en cijfers),
+niet wat **niet** mag. Een lijst met verboden tekens is gevaarlijk, want je
+vergeet er altijd één.
+
+En de assistent controleert zelf ook nog eens alles: alleen de acties `agenda`
+en `mail`, alleen de vaste bestanden `agenda.txt` en `mail.txt`, en een
+mailnummer moet echt bestaan. Twee keer controleren (op de server én in het
+programma) heet **defense in depth**: als één controle een fout bevat, houdt
+de andere het nog tegen.
+
 ## Dingen om zelf te proberen
 
 - Voeg een eigen commando toe, bijvoorbeeld `hoofdletters <tekst>` dat de
   tekst in hoofdletters terugstuurt (tip: `std::toupper` uit `<cctype>`).
 - Pas `hallo.cpp` aan, bouw het opnieuw en typ `start hallo`. Je hoeft de
   server daarvoor niet opnieuw te starten. Waarom niet?
+- Geef de assistent een nieuwe actie, bijvoorbeeld `start assistent tel`
+  die telt hoeveel afspraken en mails je hebt.
 - Maak `agenda vandaag`: laat alleen de regels zien waar de dag van vandaag in
   staat (tip: zoek met `regel.find(...)`).
 - Verander in `client.cpp` het label `"client->server"` in iets anders.
