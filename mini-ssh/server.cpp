@@ -12,7 +12,7 @@
 //
 // Om het veilig te houden voert deze server GEEN echte opdrachten op je
 // computer uit. Hij kent alleen een paar ingebouwde commando's (help, echo,
-// tijd, whoami, exit). Een echte SSH-server start op deze plek een shell.
+// tijd, agenda, whoami, exit). Een echte SSH-server start hier een shell.
 //
 // Bouwen op Windows (MinGW):  g++ server.cpp -o server.exe -lws2_32
 // Bouwen op Linux:            g++ server.cpp -o server
@@ -20,6 +20,44 @@
 
 #include "minissh.h"
 #include <ctime>     // std::time, voor het "tijd"-commando
+#include <fstream>   // std::ifstream, om een bestand te lezen (voor "agenda")
+
+// Het agenda-bestand op de server. Dit is een vaste naam: de client kan NIET
+// zelf kiezen welk bestand de server leest. Zou je dat wel toestaan (bijv.
+// "lees <bestandsnaam>"), dan kan iemand met "lees ../../geheim.txt" elk
+// bestand op de server opvragen. Een vaste naam houdt het veilig.
+// Het bestand wordt gezocht in de map waarin je server.exe start.
+const std::string AGENDA_BESTAND = "agenda.txt";
+
+// -----------------------------------------------------------------------------
+// Lees het hele agenda-bestand en geef de inhoud terug als één tekst.
+// -----------------------------------------------------------------------------
+std::string leesAgenda() {
+    // std::ifstream ("input file stream") opent een bestand om te lezen,
+    // ongeveer zoals fopen(..., "r") in C.
+    std::ifstream bestand(AGENDA_BESTAND);
+    if (!bestand) {   // kon het bestand niet openen (bestaat niet?)
+        return "Geen agenda gevonden. Zet een bestand '" + AGENDA_BESTAND +
+               "' in de map waar de server draait.";
+    }
+
+    // Regel voor regel lezen en aan elkaar plakken.
+    std::string inhoud;
+    std::string regel;
+    while (std::getline(bestand, regel)) {
+        if (!inhoud.empty()) inhoud += "\n";
+        inhoud += regel;
+    }
+    // Het bestand wordt automatisch gesloten als 'bestand' hier ophoudt te
+    // bestaan (aan het einde van de functie). Geen fclose() nodig!
+
+    if (inhoud.empty()) return "Je agenda is leeg.";
+    // Een frame mag maximaal 64 KB zijn (zie recvFrame in minissh.h).
+    if (inhoud.size() > 60000) {
+        inhoud = inhoud.substr(0, 60000) + "\n... (agenda te lang, rest weggelaten)";
+    }
+    return inhoud;
+}
 
 // De enige gebruiker die mag inloggen. In het echt staan wachtwoorden niet
 // in de code, en ook niet als leesbare tekst: het systeem bewaart alleen een
@@ -30,6 +68,17 @@ const int MAX_POGINGEN = 3;
 
 // -----------------------------------------------------------------------------
 // Voer één (ingebouwd) commando uit en geef het antwoord terug.
+//
+// Zo werkt het: de regel van de client wordt gesplitst in het eerste woord
+// (het commando) en de rest (bijv. bij "echo hallo" is de rest "hallo").
+// Daarna is het gewoon een rij if's: is het "help"? is het "echo"? enz.
+// Wat je teruggeeft (return), stuurt de server versleuteld naar de client.
+//
+// Zelf een commando toevoegen? Zet een nieuw blok erbij, bijvoorbeeld:
+//     if (commando == "hoi") {
+//         return "Hoi " + gebruiker + "!";
+//     }
+// en vergeet niet het ook in de help-tekst te zetten.
 // -----------------------------------------------------------------------------
 std::string voerCommandoUit(const std::string& regel, const std::string& gebruiker) {
     // Splits de regel in het commando (eerste woord) en de rest.
@@ -46,6 +95,7 @@ std::string voerCommandoUit(const std::string& regel, const std::string& gebruik
                "  help          dit overzicht\n"
                "  echo <tekst>  stuur de tekst terug\n"
                "  tijd          de tijd op de server\n"
+               "  agenda        je agenda (agenda.txt op de server)\n"
                "  whoami        als wie ben je ingelogd\n"
                "  exit          verbinding verbreken";
     }
@@ -58,6 +108,9 @@ std::string voerCommandoUit(const std::string& regel, const std::string& gebruik
         std::strftime(buffer, sizeof(buffer), "%d-%m-%Y %H:%M:%S",
                       std::localtime(&nu));
         return std::string("Servertijd: ") + buffer;
+    }
+    if (commando == "agenda") {
+        return leesAgenda();
     }
     if (commando == "whoami") {
         return gebruiker;

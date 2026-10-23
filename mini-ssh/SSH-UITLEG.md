@@ -251,8 +251,11 @@ Over één SSH-verbinding kunnen trouwens meerdere kanalen tegelijk lopen. Zo
 werken ook bestanden kopiëren (`scp`, `sftp`) en "port forwarding" via SSH.
 
 **In jouw mini-versie:** de server start bewust **geen** echte shell. Hij kent
-alleen een paar ingebouwde commando's (`help`, `echo`, `tijd`, `whoami`,
-`exit`). Zo kan het programma niets op je computer veranderen, ook niet als je
+alleen een paar ingebouwde commando's (`help`, `echo`, `tijd`, `agenda`,
+`whoami`, `exit`). Het commando `agenda` leest een tekstbestand op de server
+en stuurt de inhoud versleuteld terug. Bij echte SSH zou je daarvoor
+gewoon `type agenda.txt` (Windows) of `cat agenda.txt` (Linux) in de shell
+typen. Zo kan het programma niets op je computer veranderen, ook niet als je
 een foutje maakt. Wel zie je het belangrijkste idee: commando heen, antwoord
 terug, alles versleuteld.
 
@@ -270,7 +273,7 @@ terug, alles versleuteld.
 | Versleuteling | ChaCha20 of AES | XOR met simpele random-generator |
 | Knoeien ontdekken | MAC | ontbreekt |
 | Inloggen | wachtwoord (hash) of sleutelpaar | wachtwoord als tekst in de code |
-| Sessie | echte shell, meerdere kanalen | vijf ingebouwde commando's |
+| Sessie | echte shell, meerdere kanalen | zes ingebouwde commando's |
 
 ## Volgende stappen als je verder wilt
 
