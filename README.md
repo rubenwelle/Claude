@@ -152,3 +152,10 @@ g++ client.cpp -o client
 - Laat de client tekst van het toetsenbord lezen (`std::getline`) en die sturen.
 - Draai de server op een andere pc in je netwerk en vul in de client diens
   IP-adres in plaats van `127.0.0.1` in.
+
+## Volgende les: mini-SSH
+
+In de map [`mini-ssh`](mini-ssh/) staat een leerversie van SSH: dezelfde
+client/server, maar nu met sleuteluitwisseling, versleuteling en inloggen.
+De uitleg over hoe echte SSH werkt staat in
+[`mini-ssh/SSH-UITLEG.md`](mini-ssh/SSH-UITLEG.md).
