@@ -19,6 +19,7 @@ terwijl je de code leest.
 
 | Bestand          | Wat het doet |
 |------------------|--------------|
+| `pijpen.h`       | Een programma starten met twee pipes (gebruikt door `sessie`), voor Windows en Linux |
 | `minissh.h`      | Gedeelde code: berichten (frames) versturen, Diffie-Hellman, de XOR-versleuteling |
 | `server.cpp`     | Luistert op 127.0.0.1:2222, doet de handshake, controleert het wachtwoord, beantwoordt commando's |
 | `client.cpp`     | Verbindt met de server, doet de handshake, logt in, laat jou commando's typen |
@@ -60,7 +61,7 @@ g++ hallo.cpp -o hallo.exe
 g++ -std=c++17 assistent.cpp -o assistent.exe
 ```
 
-Je hoeft `minissh.h` niet apart te bouwen; dat wordt via `#include`
+Je hoeft `minissh.h` en `pijpen.h` niet apart te bouwen; dat wordt via `#include`
 automatisch meegenomen.
 
 Op Linux of macOS laat je `-lws2_32` en `.exe` weg.
@@ -346,6 +347,73 @@ Er zijn daarom drie controles achter elkaar:
 Elke controle zou in zijn eentje al genoeg moeten zijn. Maar als je er later
 per ongeluk één verandert, houden de andere het nog tegen.
 
+## Een gesprek via pipes: `sessie`
+
+Met `start` draait een programma één keer en stopt het weer. Met `sessie`
+blijft de assistent draaien, en praat je ermee alsof het een kleine command
+prompt is:
+
+```
+mini-ssh> sessie
+Hoi! Ik ben de assistent, en ik praat nu via pipes met de server.
+Typ: agenda, mail, mail <nr>, map of map <naam>. Typ 'stop' om te stoppen.
+mini-ssh> mail 1
+Van:       Opa
+Onderwerp: Verjaardag zondag
+...
+mini-ssh> map fotos
+Inhoud van gedeeld/fotos/
+...
+mini-ssh> stop
+Sessie gestopt. Je bent terug bij mini-ssh.
+```
+
+Dit is precies het idee uit [SHELL-UITLEG.md](SHELL-UITLEG.md), maar dan veilig.
+
+### Hoe werkt het?
+
+1. Je typt `sessie`. De server start `assistent.exe interactief` met de klasse
+   `KindProces` uit `pijpen.h`. Die maakt twee pipes en koppelt ze aan de stdin
+   en stdout van de assistent (op Windows met `CreatePipe` en `CreateProcess`).
+2. De assistent draait nu in een lus: `std::getline(std::cin, ...)`, opdracht
+   uitvoeren, antwoord printen met `std::cout`. Hij weet niet eens dat er een
+   server tussen zit.
+3. De server is een **doorgeefluik**. Wat jij typt, ontsleutelt hij en schrijft
+   hij in pipe 1 (`schrijfRegel`). Wat de assistent print, leest hij uit pipe 2
+   (`leesRegel`), versleutelt hij, en stuurt hij naar jou.
+4. Met `stop` sluit de server pipe 1. De assistent krijgt "einde invoer", stopt,
+   en je bent terug bij de gewone mini-ssh-commando's.
+
+### Twee problemen die je onderweg tegenkomt
+
+**Wanneer is een antwoord klaar?** De server leest regel voor regel, maar het
+ene antwoord is 1 regel en het andere 15. Daarom print de assistent na elk
+antwoord een vaste regel `<<KLAAR>>`. Herken je het? Het is hetzelfde probleem
+als bij TCP, waar we het met frames oplossen.
+
+**Waarom komt er niets aan?** Als stdout een pipe is in plaats van een scherm,
+bewaart C++ wat je print in een buffer en stuurt het pas als de buffer vol is.
+Dan wacht de server voor altijd. Daarom eindigt de assistent elk antwoord met
+`std::endl`: dat is een enter én het legen van de buffer ("flush"). Haal die
+`std::endl` maar eens weg en kijk wat er gebeurt.
+
+### Waarom is dit veilig, en een echte shell niet?
+
+De server start een **vast** programma met een **vast** argument, en
+**zonder shell**: `CreateProcess` start `assistent.exe` direct, er komt geen
+`cmd.exe` aan te pas. Alles wat je in de sessie typt, komt alleen bij de stdin
+van de assistent terecht, en die kent alleen `agenda`, `mail` en `map`. Met
+`cmd.exe` op die plek zou je alles kunnen wat je account kan.
+
+### Verschil met echte SSH
+
+- Echte SSH gebruikt **threads** of `select()`, omdat een shell op elk moment
+  iets kan printen (denk aan een programma dat elke seconde iets laat zien).
+  Wij kunnen zonder, omdat de assistent alleen antwoordt als jij iets vraagt,
+  en altijd eindigt met `<<KLAAR>>`.
+- Echte SSH gebruikt een **pseudo-terminal** (ConPTY op Windows), zodat
+  kleuren, pijltjestoetsen en Ctrl+C werken. Wij gebruiken gewone pipes.
+
 ## Dingen om zelf te proberen
 
 - Voeg een eigen commando toe, bijvoorbeeld `hoofdletters <tekst>` dat de
@@ -355,6 +423,8 @@ per ongeluk één verandert, houden de andere het nog tegen.
 - Maak `start assistent lees <map> <bestand>` die een tekstbestand uit
   `gedeeld` laat zien. Welke controles heb je dan nodig? (Tip: een
   bestandsnaam heeft een punt, zoals `ideeen.txt`. Hoe ga je daarmee om?)
+- Voeg in `interactief()` in `assistent.cpp` een opdracht `tijd` toe die
+  alleen in de sessie werkt.
 - Geef de assistent een nieuwe actie, bijvoorbeeld `start assistent tel`
   die telt hoeveel afspraken en mails je hebt.
 - Maak `agenda vandaag`: laat alleen de regels zien waar de dag van vandaag in

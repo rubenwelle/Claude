@@ -12,8 +12,9 @@
 //
 // Om het veilig te houden start deze server GEEN shell waarin je alles kunt
 // typen. Hij kent alleen een paar ingebouwde commando's (help, echo, tijd,
-// agenda, programmas, start, whoami, exit). Met "start" kun je een programma
-// laten draaien, maar alleen als het op een vaste lijst staat.
+// agenda, programmas, start, sessie, whoami, exit). Met "start" kun je een
+// programma laten draaien, maar alleen als het op een vaste lijst staat.
+// Met "sessie" praat je via pipes met de assistent (zie pijpen.h).
 // Een echte SSH-server start op deze plek een shell.
 //
 // Bouwen op Windows (MinGW):  g++ server.cpp -o server.exe -lws2_32
@@ -26,6 +27,7 @@
 #include <cstdio>    // popen/_popen, fgets: een programma starten en lezen
 #include <map>       // std::map, een "woordenboek" van naam -> waarde
 #include <vector>    // std::vector, een lijst die kan groeien (voor argumenten)
+#include "pijpen.h"  // KindProces: een programma starten met twee pipes ("sessie")
 
 // Het agenda-bestand op de server. Dit is een vaste naam: de client kan NIET
 // zelf kiezen welk bestand de server leest. Zou je dat wel toestaan (bijv.
@@ -230,6 +232,89 @@ std::string lijstProgrammas() {
     return tekst;
 }
 
+// -----------------------------------------------------------------------------
+// De "sessie": een gesprek met de assistent via twee pipes.
+//
+// Dit is het idee van een echte SSH-shell (zie SHELL-UITLEG.md), maar dan
+// veilig: in plaats van cmd.exe starten we de assistent in interactieve
+// modus. De server is een doorgeefluik:
+//
+//   client --(versleuteld)--> server --(pipe 1)--> stdin van assistent
+//   client <--(versleuteld)-- server <--(pipe 2)-- stdout van assistent
+//
+// Waarom is dit veilig? We starten een VAST programma met een VAST argument,
+// en zonder shell. Alles wat je in de sessie typt, komt alleen bij de stdin
+// van de assistent terecht. De assistent bepaalt zelf wat hij ermee doet,
+// en kent alleen agenda, mail en map.
+// -----------------------------------------------------------------------------
+#ifdef _WIN32
+const std::string ASSISTENT_PROGRAMMA = "assistent.exe";
+#else
+const std::string ASSISTENT_PROGRAMMA = "./assistent";
+#endif
+const std::string EINDE_ANTWOORD = "<<KLAAR>>";   // zelfde als in assistent.cpp
+
+// Lees regels van de assistent tot de eindmarkering, en plak ze aan elkaar.
+bool leesAntwoord(KindProces& kind, std::string& antwoord) {
+    antwoord.clear();
+    std::string regel;
+    while (kind.leesRegel(regel)) {
+        if (regel == EINDE_ANTWOORD) {
+            if (antwoord.empty()) antwoord = "(geen antwoord)";
+            return true;
+        }
+        if (!antwoord.empty()) antwoord += "\n";
+        if (antwoord.size() < 60000) antwoord += regel;   // frame max. 64 KB
+    }
+    return false;   // de assistent is gestopt
+}
+
+// Voer een sessie uit. Geeft false als de verbinding met de client weg is
+// (of de client 'exit' typte), en true als we terug gaan naar mini-ssh.
+bool voerSessieUit(SOCKET client, StroomVersleutelaar& versturen,
+                   StroomVersleutelaar& ontvangen) {
+    KindProces assistent;   // ruimt zichzelf op aan het einde (zie pijpen.h)
+    std::string antwoord;
+
+    if (!assistent.start(ASSISTENT_PROGRAMMA, "interactief") ||
+        !leesAntwoord(assistent, antwoord)) {
+        return sendVersleuteld(client, versturen,
+            "Kon de assistent niet starten. Staat " + ASSISTENT_PROGRAMMA +
+            " in de map van de server?");
+    }
+    std::cout << "  [sessie gestart]\n";
+    if (!sendVersleuteld(client, versturen, antwoord)) return false;
+
+    while (true) {
+        std::string regel;
+        if (!recvVersleuteld(client, ontvangen, regel)) return false;
+
+        // Een enter midden in een bericht zou als twee opdrachten bij de
+        // assistent aankomen, en dan lopen vraag en antwoord niet meer gelijk.
+        // Daarom vervangen we enters door spaties.
+        for (char& c : regel) {
+            if (c == '\n' || c == '\r') c = ' ';
+        }
+        std::cout << "  [sessie] " << regel << "\n";
+
+        if (regel == "stop") {
+            std::cout << "  [sessie gestopt]\n";
+            return sendVersleuteld(client, versturen,
+                                   "Sessie gestopt. Je bent terug bij mini-ssh.");
+        }
+        if (regel == "exit") {
+            sendVersleuteld(client, versturen, "Tot ziens!");
+            return false;
+        }
+        // Doorgeven aan de assistent, en het antwoord terugsturen.
+        if (!assistent.schrijfRegel(regel) || !leesAntwoord(assistent, antwoord)) {
+            return sendVersleuteld(client, versturen,
+                                   "De assistent is gestopt. Sessie beëindigd.");
+        }
+        if (!sendVersleuteld(client, versturen, antwoord)) return false;
+    }
+}
+
 // De enige gebruiker die mag inloggen. In het echt staan wachtwoorden niet
 // in de code, en ook niet als leesbare tekst: het systeem bewaart alleen een
 // "hash" (een vingerafdruk) van je wachtwoord.
@@ -271,6 +356,7 @@ std::string voerCommandoUit(const std::string& regel, const std::string& gebruik
                "  start <naam> [argumenten]\n"
                "                start een programma en toon de output\n"
                "                (bijv. 'start assistent mail')\n"
+               "  sessie        praat met de assistent via pipes ('stop' om te stoppen)\n"
                "  whoami        als wie ben je ingelogd\n"
                "  exit          verbinding verbreken";
     }
@@ -393,6 +479,12 @@ void behandelClient(SOCKET client) {
         if (regel == "exit") {
             sendVersleuteld(client, versturen, "Tot ziens!");
             return;
+        }
+        if (regel == "sessie") {
+            // De sessie heeft de socket en de versleuteling nodig, daarom
+            // staat hij hier en niet in voerCommandoUit().
+            if (!voerSessieUit(client, versturen, ontvangen)) return;
+            continue;
         }
         if (!sendVersleuteld(client, versturen, voerCommandoUit(regel, gebruiker))) {
             return;

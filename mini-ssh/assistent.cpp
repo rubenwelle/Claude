@@ -9,6 +9,8 @@
 //   assistent mail 2       lees mailbericht nummer 2
 //   assistent map          laat zien wat er in de map "gedeeld" staat
 //   assistent map fotos    laat zien wat er in "gedeeld/fotos" staat
+//   assistent interactief  blijf draaien en lees opdrachten van stdin
+//                          (dit gebruikt de server voor het commando "sessie")
 //   assistent              uitleg over wat het programma kan
 //
 // Via mini-SSH start je het met:  start assistent mail 2
@@ -28,6 +30,7 @@
 #include <vector>
 #include <filesystem> // std::filesystem: mappen en bestanden bekijken (C++17)
 #include <algorithm>  // std::sort, om de lijst op alfabet te zetten
+#include <sstream>    // std::istringstream, om een regel in woorden te splitsen
 
 // std::filesystem is een lange naam; zo mogen we gewoon fs:: schrijven.
 namespace fs = std::filesystem;
@@ -239,6 +242,69 @@ int toonMap(int argc, char* argv[]) {
 }
 
 // -----------------------------------------------------------------------------
+// Interactieve modus: blijf draaien en lees opdrachten van stdin.
+//
+// Zo gebruikt de server de assistent bij het commando "sessie". De server
+// heeft onze stdin en stdout aan twee pipes gekoppeld (zie pijpen.h). Voor
+// ons maakt dat niets uit: we lezen gewoon met std::getline(std::cin, ...)
+// en printen met std::cout, net als altijd.
+//
+// Twee dingen zijn wel belangrijk:
+//
+// 1. EINDMARKERING. De server leest regel voor regel uit de pipe, maar hoe
+//    weet hij dat een antwoord klaar is? Het ene antwoord is 1 regel, het
+//    andere 15. Daarom printen we na elk antwoord een vaste regel EINDE.
+//    Dit is hetzelfde probleem als bij TCP (een stroom bytes, geen losse
+//    berichten), en de oplossing lijkt op de frames in minissh.h.
+//
+// 2. FLUSHEN. Als stdout een pipe is (en geen scherm), bewaart C++ wat je
+//    print eerst in een buffer, en stuurt het pas als de buffer vol is. Dan
+//    zou de server eeuwig wachten. std::endl stuurt een enter EN leegt de
+//    buffer ("flush"), zodat alles direct de pipe in gaat.
+// -----------------------------------------------------------------------------
+const std::string EINDE = "<<KLAAR>>";
+
+int interactief() {
+    std::cout << "Hoi! Ik ben de assistent, en ik praat nu via pipes met de server.\n"
+              << "Typ: agenda, mail, mail <nr>, map of map <naam>. Typ 'stop' om te stoppen.\n"
+              << EINDE << std::endl;   // std::endl = enter + flush
+
+    std::string regel;
+    // getline geeft false als stdin dicht gaat (de server sluit pipe 1).
+    while (std::getline(std::cin, regel)) {
+        if (!regel.empty() && regel.back() == '\r') regel.pop_back();
+        if (regel == "stop") break;
+
+        // Splits de regel in woorden, en maak er een argv van zoals main()
+        // die zou krijgen. Dan kunnen we dezelfde functies hergebruiken.
+        std::istringstream woorden(regel);
+        std::vector<std::string> stukken = { "assistent" };   // argv[0]
+        std::string woord;
+        while (woorden >> woord) stukken.push_back(woord);
+
+        if (stukken.size() < 2) {
+            std::cout << "Typ een opdracht, bijvoorbeeld 'mail'.\n";
+        } else if (stukken.size() > 4) {
+            std::cout << "Te veel woorden (maximaal 3).\n";
+        } else {
+            // argv is een lijst van char*, dus wijzen we naar onze strings.
+            std::vector<char*> args;
+            for (std::string& s : stukken) args.push_back(&s[0]);
+            int argc = static_cast<int>(args.size());
+            char** argv = args.data();
+
+            std::string actie = stukken[1];
+            if      (actie == "agenda") toonAgenda();
+            else if (actie == "mail")   toonMail(argc, argv);
+            else if (actie == "map")    toonMap(argc, argv);
+            else std::cout << "Onbekende actie '" << actie << "'.\n";
+        }
+        std::cout << EINDE << std::endl;   // antwoord klaar, en flush!
+    }
+    return 0;
+}
+
+// -----------------------------------------------------------------------------
 // main krijgt de argumenten binnen via argc en argv, precies zoals in C:
 //   argc = hoeveel woorden er zijn (de programmanaam telt mee!)
 //   argv = de woorden zelf
@@ -260,6 +326,7 @@ int main(int argc, char* argv[]) {
     if (actie == "agenda") return toonAgenda();
     if (actie == "mail")   return toonMail(argc, argv);
     if (actie == "map")    return toonMap(argc, argv);
+    if (actie == "interactief") return interactief();
 
     // Ook hier: alleen acties die we kennen. Al het andere weigeren we.
     std::cout << "Onbekende actie '" << actie << "'. Kies 'agenda', 'mail' of 'map'.\n";
