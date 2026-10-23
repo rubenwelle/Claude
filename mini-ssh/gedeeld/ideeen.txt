@@ -1,0 +1,3 @@
+Ideeen voor mini-SSH:
+- bestanden kopieren
+- meerdere clients tegelijk
