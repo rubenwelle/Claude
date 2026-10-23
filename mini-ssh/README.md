@@ -19,7 +19,8 @@ terwijl je de code leest.
 
 | Bestand          | Wat het doet |
 |------------------|--------------|
-| `pijpen.h`       | Een programma starten met twee pipes (gebruikt door `sessie`), voor Windows en Linux |
+| `pijpen.h`       | Een programma starten met twee pipes (gebruikt door `sessie` en `cmd-pipe`) |
+| `cmd-pipe.cpp`   | LOKALE demo (geen netwerk): een echte shell via pipes, om het verschil te voelen |
 | `minissh.h`      | Gedeelde code: berichten (frames) versturen, Diffie-Hellman, de XOR-versleuteling |
 | `server.cpp`     | Luistert op 127.0.0.1:2222, doet de handshake, controleert het wachtwoord, beantwoordt commando's |
 | `client.cpp`     | Verbindt met de server, doet de handshake, logt in, laat jou commando's typen |
@@ -413,6 +414,65 @@ van de assistent terecht, en die kent alleen `agenda`, `mail` en `map`. Met
   en altijd eindigt met `<<KLAAR>>`.
 - Echte SSH gebruikt een **pseudo-terminal** (ConPTY op Windows), zodat
   kleuren, pijltjestoetsen en Ctrl+C werken. Wij gebruiken gewone pipes.
+
+## Het verschil voelen: `cmd-pipe` (een echte shell)
+
+De `sessie` praat met de assistent, een net programma dat precies antwoordt
+wat jij vraagt. Maar hoe voelt het met een *echte* shell, zoals `cmd.exe`?
+Daarvoor is er een los demo-programma, `cmd-pipe`.
+
+> **Belangrijk:** `cmd-pipe` praat **niet** over het netwerk. Er luistert geen
+> poort en er is geen login. Het start de shell alleen op jouw eigen computer
+> en koppelt die aan je eigen toetsenbord en scherm. Daarom is het geen remote
+> shell en geen backdoor. En precies daarom koppelen we een echte shell
+> **nooit** aan de mini-SSH-server: zodra een shell aan een netwerkpoort hangt,
+> kan iedereen die de poort bereikt alles doen wat jouw account kan.
+
+Bouwen en starten:
+
+```
+g++ -std=c++17 cmd-pipe.cpp -o cmd-pipe.exe      (Windows)
+g++ -std=c++17 -pthread cmd-pipe.cpp -o cmd-pipe  (Linux)
+cmd-pipe.exe
+```
+
+Typ dan bijvoorbeeld `dir` (Windows) of `ls` (Linux), en `exit` om te stoppen.
+
+### Wat je merkt, en waarom
+
+Vergelijk het met de assistent-sessie, en let op deze dingen:
+
+- **Een prompt en "echo".** `cmd.exe` print zijn eigen prompt (`C:\>`) en op
+  Windows zie je ook je eigen getypte regel terug. De assistent deed dat niet.
+  Een shell is gebouwd om met een mens te praten; de assistent met een
+  programma.
+- **Geen `<<KLAAR>>`.** De assistent zei na elk antwoord netjes "ik ben klaar".
+  Een shell doet dat niet. Daarom weet een echte SSH-server nooit zeker wanneer
+  een antwoord "af" is; hij stuurt gewoon door wat binnenkomt, zodra het
+  binnenkomt. In `cmd-pipe` zie je dat: de uitvoer verschijnt in stukjes, niet
+  als één keurig blok.
+- **Twee dingen tegelijk.** Omdat de shell op elk moment iets kan printen
+  (ook zonder dat jij iets vroeg), heeft `cmd-pipe` een aparte **thread** die
+  de hele tijd leest. Bij de assistent kon de server simpel "vraag, dan
+  antwoord" doen; bij een shell moet lezen en schrijven tegelijk.
+- **Buffering.** Soms lijkt het of er niets gebeurt, en dan komt er ineens een
+  lap tekst. Dat is de buffer. De assistent loste dat op met `std::endl`
+  (flush); een shell die niet weet dat hij naar een pipe praat, doet dat niet
+  altijd.
+- **Rare dingen zonder pseudo-terminal.** Pijltjestoetsen, Tab, kleuren en
+  Ctrl+C werken niet of raar. Dat komt doordat de shell merkt dat hij niet in
+  een echte terminal draait (geen "tty"), maar in een kale pipe. Dit is precies
+  het probleem dat **ConPTY** (Windows) en een **pty** (Linux) oplossen, en de
+  reden dat echte SSH die gebruikt. Zie [SHELL-UITLEG.md](SHELL-UITLEG.md).
+- **Op Linux: geen prompt.** Start je `/bin/sh` via een pipe, dan zie je zelfs
+  helemaal geen prompt, want `sh` zet die alleen aan voor een echte terminal.
+  Nog een bewijs dat programma's zich anders gedragen tegenover een pipe.
+
+Kortom: de assistent is makkelijk netjes door de pipe te praten omdat hij
+meewerkt. Een echte shell doet dat niet, en daarom moet een echte SSH-server
+veel meer werk doen (threads, een pseudo-terminal, omgaan met losse stukjes).
+En omdat die shell zoveel macht geeft, zit hij achter sterke versleuteling en
+een goede login, en hangt hij nooit zomaar aan een open netwerkpoort.
 
 ## Dingen om zelf te proberen
 
