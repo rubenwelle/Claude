@@ -60,6 +60,12 @@ public:
     // Geeft false als het kind gestopt is.
     bool leesRegel(std::string& regel);
 
+    // Sluit ALLEEN onze schrijfkant (pipe 1). Het kind krijgt dan "einde
+    // invoer" en stopt meestal vanzelf, terwijl wij zijn laatste uitvoer nog
+    // uit pipe 2 kunnen lezen. Handig vóór stop(): eerst dit, dan de uitvoer
+    // leeglezen, dan pas stop().
+    void sluitInvoer();
+
     // Sluit de pipes en wacht tot het kind gestopt is.
     void stop();
 
@@ -113,7 +119,8 @@ inline bool KindProces::start(const std::string& programma, const std::string& a
     si.hStdError  = kindSchrijft;   // stderr ook naar pipe 2
 
     // CreateProcess wil de opdrachtregel in een buffer die het mag aanpassen.
-    std::string opdracht = programma + " " + argument;
+    // Een leeg argument betekent: start het programma zonder argument.
+    std::string opdracht = argument.empty() ? programma : (programma + " " + argument);
     BOOL gelukt = CreateProcessA(
         NULL, &opdracht[0], NULL, NULL,
         TRUE,               // handles erven: ja (alleen die we toestaan)
@@ -147,11 +154,17 @@ inline bool KindProces::leesByte(char& c) {
     return ReadFile(vanKind, &c, 1, &gelezen, NULL) && gelezen == 1;
 }
 
+inline void KindProces::sluitInvoer() {
+    if (naarKind != NULL) {
+        CloseHandle(naarKind);   // het kind krijgt "einde invoer"
+        naarKind = NULL;
+    }
+}
+
 inline void KindProces::stop() {
     if (!gestart) return;
     gestart = false;
-    // Pipe 1 dichtdoen: het kind krijgt "einde invoer" en stopt netjes.
-    CloseHandle(naarKind);
+    sluitInvoer();   // pipe 1 dicht (als dat nog niet gebeurd is)
     // Geef het kind 2 seconden; daarna zetten we het zelf uit.
     if (WaitForSingleObject(proces.hProcess, 2000) == WAIT_TIMEOUT) {
         TerminateProcess(proces.hProcess, 1);
@@ -194,7 +207,11 @@ inline bool KindProces::start(const std::string& programma, const std::string& a
         dup2(pijp2[1], 2);   // stderr ook
         close(pijp1[0]); close(pijp1[1]); close(pijp2[0]); close(pijp2[1]);
         // exec vervangt dit kind door het echte programma.
-        execl(programma.c_str(), programma.c_str(), argument.c_str(), (char*)NULL);
+        // Een leeg argument betekent: start het programma zonder argument.
+        if (argument.empty())
+            execl(programma.c_str(), programma.c_str(), (char*)NULL);
+        else
+            execl(programma.c_str(), programma.c_str(), argument.c_str(), (char*)NULL);
         _exit(127);          // alleen als exec mislukt (programma niet gevonden)
     }
 
@@ -223,10 +240,17 @@ inline bool KindProces::leesByte(char& c) {
     return read(vanKind, &c, 1) == 1;
 }
 
+inline void KindProces::sluitInvoer() {
+    if (naarKind != -1) {
+        close(naarKind);     // "einde invoer" voor het kind
+        naarKind = -1;
+    }
+}
+
 inline void KindProces::stop() {
     if (!gestart) return;
     gestart = false;
-    close(naarKind);         // "einde invoer" voor het kind
+    sluitInvoer();           // pipe 1 dicht (als dat nog niet gebeurd is)
     close(vanKind);
     waitpid(pid, nullptr, 0);
 }
