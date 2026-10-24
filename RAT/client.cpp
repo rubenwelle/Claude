@@ -97,7 +97,7 @@ int main() {
     }
 
     // Stap 6: opruimen.
-    closesocket(sock);
+    closesocket(verbinding);
 #ifdef _WIN32
     WSACleanup();
 #endif
