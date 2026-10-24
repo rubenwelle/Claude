@@ -49,7 +49,7 @@ int main() {
         return 1;
     }
   
-    std::atomic<bool> loopt{true};
+    std::atomic<bool> started{true};
   
     // 1. Maak een socket en verbind met de server op 127.0.0.1:3000.
     SOCKET verbinding = socket(AF_INET, SOCK_STREAM, 0);
@@ -82,7 +82,7 @@ int main() {
                 // std::cout << regel << "\n"; << std::flush();   // meteen tonen, niet in een buffer bewaren
                 if (!sendPlat(verbinding, regel)) return;
             }
-            loopt = false;   // pipe dicht: de shell is gestopt
+            started = false;   // pipe dicht: de shell is gestopt
         });      
       
         // De hoofd-thread: lees wat jij typt en stuur het naar de shell.
