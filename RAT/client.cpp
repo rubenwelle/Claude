@@ -93,7 +93,7 @@ int main() {
             if (invoer == "exit" || invoer == "quit") break;
         }     
         shell.closeInput();
-        if (reader.joinable()) lezer.join();
+        if (reader.joinable()) reader.join();
         shell.stop();      
     }
 
