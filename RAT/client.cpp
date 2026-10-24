@@ -3,8 +3,6 @@
 #include <thread>    // std::thread, om twee dingen tegelijk te doen
 #include <atomic>    // std::atomic, een vlaggetje dat je veilig vanuit twee
                      // threads tegelijk mag lezen en schrijven
-#include "pipes.h"
-#include "net.h"
 
 // Zelfde truc als in server.cpp: de juiste headers per besturingssysteem.
 #ifdef _WIN32
@@ -24,6 +22,9 @@
     const int SOCKET_ERROR   = -1;
     #define closesocket close
 #endif
+
+#include "pipes.h"
+#include "net.h"
 
 // Welke shell starten we? Op Windows cmd.exe, op Linux /bin/sh.
 #ifdef _WIN32
