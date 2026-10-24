@@ -42,7 +42,7 @@ int main() {
     }
 #endif
 
-    KindProces shell;
+    ChildProcess shell;
     if (!shell.start(SHELL, "")) {   // leeg argument = shell zonder argument
         std::cerr << "Kon " << SHELL << " niet starten.\n";
         return 1;
@@ -76,7 +76,7 @@ int main() {
       
         std::thread lezer([&]() {
             std::string regel;
-            while (shell.leesRegel(regel)) {
+            while (shell.readLine(regel)) {
                 // std::cout << regel << "\n"; << std::flush();   // meteen tonen, niet in een buffer bewaren
                 if (!sendPlat(verbinding, regel)) return;
             }
@@ -87,10 +87,10 @@ int main() {
         std::string invoer;
         invoer = bericht
         while (loopt && std::getline(std::cin, invoer)) {
-            if (!shell.schrijfRegel(invoer)) break;   // pipe dicht
+            if (!shell.writeLine(invoer)) break;   // pipe dicht
             if (invoer == "exit" || invoer == "quit") break;
         }     
-        shell.sluitInvoer();
+        shell.closeInput();
         if (lezer.joinable()) lezer.join();
         shell.stop();      
     }
