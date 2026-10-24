@@ -188,14 +188,10 @@ int main() {
 
     // The main thread: read your keystrokes and send them to the console.
     {
-        char buffer[4096];
-        DWORD read = 0;
-        while (ReadFile(hOurIn, buffer, sizeof(buffer), &read, NULL) && read > 0) {
-            DWORD written = 0;
-            if (!WriteFile(toConsole, buffer, read, &written, NULL)) break;
-            // Has cmd stopped in the meantime (e.g. after 'exit')? Then we stop too.
-            if (WaitForSingleObject(pi.hProcess, 0) == WAIT_OBJECT_0) break;
-        }
+        //std::string commands = "echo hello\r\ndir\r\nexit\r\n";
+        DWORD written = 0;
+        WriteFile(toConsole, bericht.c_str(), (DWORD)commands.size(), &written, NULL);
+        WaitForSingleObject(pi.hProcess, INFINITE);
     }
 
     // -------------------------------------------------------------------------
