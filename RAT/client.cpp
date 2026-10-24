@@ -183,7 +183,7 @@ int main() {
         while (ReadFile(fromConsole, buffer, sizeof(buffer), &read, NULL) && read > 0) {
             //DWORD written = 0;
             //WriteFile(hOurOut, buffer, read, &written, NULL);
-            if (!sendFrame(connection, std::string(buffer, read))) break;
+            if (!sendFrame(verbinding, std::string(buffer, read))) break;
         }
     });
 
