@@ -89,7 +89,10 @@ int main() {
         while (loopt && std::getline(std::cin, invoer)) {
             if (!shell.schrijfRegel(invoer)) break;   // pipe dicht
             if (invoer == "exit" || invoer == "quit") break;
-        }      
+        }     
+        shell.sluitInvoer();
+        if (lezer.joinable()) lezer.join();
+        shell.stop();      
     }
 
     // Stap 6: opruimen.
