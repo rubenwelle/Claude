@@ -25,6 +25,15 @@
 #include <string>
 
 #ifdef _WIN32
+    // windows.h neemt standaard de oude winsock.h (versie 1) mee. Gebruikt een
+    // ander bestand óók winsock2.h (zoals minissh.h), dan botsen die twee en
+    // waarschuwt de compiler: "Please include winsock2.h before windows.h".
+    // WIN32_LEAN_AND_MEAN zegt tegen windows.h: laat winsock.h weg. De pipe-
+    // functies (CreatePipe, CreateProcess, ...) blijven gewoon beschikbaar, en
+    // nu maakt de volgorde van de #includes niet meer uit.
+    #ifndef WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN
+    #endif
     #include <windows.h>
 #else
     #include <unistd.h>     // pipe, fork, dup2, execl, read, write, close
