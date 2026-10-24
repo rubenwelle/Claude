@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include "pijpen.h"
+#include "net.h"
 
 // Zelfde truc als in server.cpp: de juiste headers per besturingssysteem.
 #ifdef _WIN32
