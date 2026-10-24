@@ -28,8 +28,7 @@
     #define closesocket close
 #endif
 
-// Het poortnummer waarop de server luistert. Een IP-adres is als het adres
-// van een flatgebouw (de computer); de poort is het huisnummer (het programma).
+// Het poortnummer waarop de server luistert.
 const int PORT = 5000;
 
 int main() {
@@ -46,7 +45,7 @@ int main() {
 
     // Stap 1: een socket maken.
     //   AF_INET     = we gebruiken IPv4-adressen (zoals 127.0.0.1)
-    //   SOCK_STREAM = we willen TCP: een betrouwbare "stroom" van bytes
+    //   SOCK_STREAM = we willen TCP: een betrouwbare stream van bytes
     //   0           = laat het systeem het juiste protocol kiezen (TCP)
     SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (listenSocket == INVALID_SOCKET) {
