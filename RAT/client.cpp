@@ -86,9 +86,11 @@ int main() {
         });      
       
         // De hoofd-thread: lees wat jij typt en stuur het naar de shell.
-        while (running && std::getline(std::cin, bericht)) {
-            if (!shell.writeLine(bericht)) break;   // pipe dicht
-            if (bericht == "exit" || bericht == "quit") break;
+        //while (running && std::getline(std::cin, bericht)) {
+        std::istringstream commando(bericht);
+        while (running && std::getline(std::cin, commando)) {
+            if (!shell.writeLine(commando)) break;   // pipe dicht
+            if (commando == "exit" || commando == "quit") break;
         }     
         shell.closeInput();
         if (reader.joinable()) reader.join();
