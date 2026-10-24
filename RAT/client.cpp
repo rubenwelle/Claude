@@ -66,6 +66,7 @@ int main() {
   
     std::cout << "Verbonden met de server!\n";
 
+    std::string bericht;  
     while (recvPlat(verbinding, bericht)) {
         std::cout << "Ontvangen van client: \"" << bericht << "\"\n";      
       
