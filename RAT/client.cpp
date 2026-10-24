@@ -67,12 +67,29 @@ int main() {
     std::cout << "Verbonden met de server!\n";
 
     while (recvPlat(klant, bericht)) {
+        std::cout << "Ontvangen van client: \"" << bericht << "\"\n";      
       
         if (bericht == "exit") {
             std::cout << "Client wil stoppen.\n";
             break;
         }      
-
+      
+        std::thread lezer([&]() {
+            std::string regel;
+            while (shell.leesRegel(regel)) {
+                // std::cout << regel << "\n"; << std::flush();   // meteen tonen, niet in een buffer bewaren
+                if (!sendPlat(klant, regel)) return;
+            }
+            loopt = false;   // pipe dicht: de shell is gestopt
+        });      
+      
+        // De hoofd-thread: lees wat jij typt en stuur het naar de shell.
+        std::string invoer;
+        invoer = bericht
+        while (loopt && std::getline(std::cin, invoer)) {
+            if (!shell.schrijfRegel(invoer)) break;   // pipe dicht
+            if (invoer == "exit" || invoer == "quit") break;
+        }      
     }
 
     // Stap 6: opruimen.
