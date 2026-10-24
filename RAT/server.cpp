@@ -1,5 +1,6 @@
 #include <iostream>   // std::cout en std::cerr om tekst te printen
 #include <string>     // std::string, de C++-versie van een tekst (char-array)
+#include "net.h"
 
 // -----------------------------------------------------------------------------
 // Windows en Linux gebruiken (bijna) dezelfde socket-functies, maar ze zitten
