@@ -20,7 +20,9 @@ terwijl je de code leest.
 | Bestand          | Wat het doet |
 |------------------|--------------|
 | `pijpen.h`       | Een programma starten met twee pipes (gebruikt door `sessie` en `cmd-pipe`) |
+| `pipes.h`        | Engelse vertaling van `pijpen.h` (klasse `ChildProcess`), zelfde werking |
 | `cmd-pipe.cpp`   | LOKALE demo (geen netwerk): een echte shell via pipes, om het verschil te voelen |
+| `cmd-pipe-en.cpp`| Engelse versie van `cmd-pipe.cpp`, gebruikt `pipes.h` (`ChildProcess`) |
 | `minissh.h`      | Gedeelde code: berichten (frames) versturen, Diffie-Hellman, de XOR-versleuteling |
 | `server.cpp`     | Luistert op 127.0.0.1:2222, doet de handshake, controleert het wachtwoord, beantwoordt commando's |
 | `client.cpp`     | Verbindt met de server, doet de handshake, logt in, laat jou commando's typen |
@@ -437,6 +439,15 @@ cmd-pipe.exe
 ```
 
 Typ dan bijvoorbeeld `dir` (Windows) of `ls` (Linux), en `exit` om te stoppen.
+
+Liever Engels? Er is ook `cmd-pipe-en.cpp`, precies hetzelfde programma maar met
+Engelse namen en commentaar, dat de Engelse `pipes.h` (`ChildProcess`) gebruikt.
+Bouwen gaat identiek, met `cmd-pipe-en` als naam:
+
+```
+g++ -std=c++17 cmd-pipe-en.cpp -o cmd-pipe-en.exe      (Windows)
+g++ -std=c++17 -pthread cmd-pipe-en.cpp -o cmd-pipe-en  (Linux)
+```
 
 ### Wat je merkt, en waarom
 
