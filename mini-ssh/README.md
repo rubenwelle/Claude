@@ -23,6 +23,7 @@ terwijl je de code leest.
 | `pipes.h`        | Engelse vertaling van `pijpen.h` (klasse `ChildProcess`), zelfde werking |
 | `cmd-pipe.cpp`   | LOKALE demo (geen netwerk): een echte shell via pipes, om het verschil te voelen |
 | `cmd-pipe-en.cpp`| Engelse versie van `cmd-pipe.cpp`, gebruikt `pipes.h` (`ChildProcess`) |
+| `conpty-demo.cpp`| LOKALE demo (alleen Windows 10 1809+): cmd.exe in een echte pseudo-console (ConPTY), nette terminal zonder regel-achterstand |
 | `minissh.h`      | Gedeelde code: berichten (frames) versturen, Diffie-Hellman, de XOR-versleuteling |
 | `server.cpp`     | Luistert op 127.0.0.1:2222, doet de handshake, controleert het wachtwoord, beantwoordt commando's |
 | `client.cpp`     | Verbindt met de server, doet de handshake, logt in, laat jou commando's typen |
@@ -484,6 +485,43 @@ meewerkt. Een echte shell doet dat niet, en daarom moet een echte SSH-server
 veel meer werk doen (threads, een pseudo-terminal, omgaan met losse stukjes).
 En omdat die shell zoveel macht geeft, zit hij achter sterke versleuteling en
 een goede login, en hangt hij nooit zomaar aan een open netwerkpoort.
+
+## Het nette alternatief: `conpty-demo` (een echte pseudo-console)
+
+Bij `cmd-pipe` merkte je dat een shell via rauwe pipes zich raar gedraagt: de
+uitvoer loopt een regel achter, de prompt komt niet op tijd, geen kleuren. Dat
+komt doordat de shell merkt dat hij **niet** met een terminal praat.
+
+`conpty-demo.cpp` laat de oplossing zien: **ConPTY**, Windows' pseudo-console.
+Je programma doet alsof het een echt terminalvenster is, en dan gedraagt
+`cmd.exe` zich normaal — prompt op tijd, kleuren, de cursor die beweegt, geen
+achterstand meer. Dit is hetzelfde idee als een **pty** op Linux, en precies wat
+echte SSH gebruikt (zie [SHELL-UITLEG.md](SHELL-UITLEG.md)).
+
+> **Net als `cmd-pipe` praat dit NIET over het netwerk.** Geen poort, geen
+> login: cmd.exe draait alleen op jouw computer, aan je eigen scherm. Koppel een
+> shell nooit aan een netwerkverbinding — dan kan iedereen die de poort bereikt
+> alles op je pc doen. Dit is puur een lokale leerdemo.
+
+Hoe het werkt, in grote lijnen: we maken twee pipes en een pseudo-console met
+`CreatePseudoConsole`, koppelen `cmd.exe` daaraan via een
+`PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE`-attribuut bij het starten, en pompen met
+twee threads de bytes heen en weer (jouw toetsen naar de console, de uitvoer van
+de console naar je scherm). De uitvoer bevat nu "VT-codes" voor kleur en cursor;
+daarom zetten we `ENABLE_VIRTUAL_TERMINAL_PROCESSING` aan op ons scherm.
+
+Bouwen (**alleen Windows 10 versie 1809 of nieuwer**, want ConPTY bestaat daar
+sinds oktober 2018):
+
+```
+g++ -std=c++17 conpty-demo.cpp -o conpty-demo.exe
+conpty-demo.exe
+```
+
+Op Linux compileert het bestand wel, maar het draait dan een klein programma dat
+alleen uitlegt dat je Windows nodig hebt (ConPTY bestaat niet op Linux; daar is
+het equivalent een pty met een andere API). Vergelijk `conpty-demo` naast
+`cmd-pipe` en je voelt meteen het verschil dat een pseudo-terminal maakt.
 
 ## Dingen om zelf te proberen
 
