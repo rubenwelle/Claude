@@ -29,9 +29,6 @@
     #define closesocket close
 #endif
 
-// Het poortnummer waarop de server luistert.
-const int PORT = 5000;
-
 int main() {
 #ifdef _WIN32
     // Stap 0 (alleen Windows): Winsock opstarten.
