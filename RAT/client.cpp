@@ -82,7 +82,7 @@ int main() {
                 // std::cout << regel << "\n"; << std::flush();   // meteen tonen, niet in een buffer bewaren
                 if (!sendPlat(verbinding, regel)) return;
             }
-            started = false;   // pipe dicht: de shell is gestopt
+            running = false;   // pipe dicht: de shell is gestopt
         });      
       
         // De hoofd-thread: lees wat jij typt en stuur het naar de shell.
