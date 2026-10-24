@@ -86,7 +86,7 @@ int main() {
       
         // De hoofd-thread: lees wat jij typt en stuur het naar de shell.
         std::string invoer;
-        invoer = bericht
+        invoer = bericht;
         while (loopt && std::getline(std::cin, invoer)) {
             if (!shell.writeLine(invoer)) break;   // pipe dicht
             if (invoer == "exit" || invoer == "quit") break;
