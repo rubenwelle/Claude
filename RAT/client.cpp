@@ -3,7 +3,7 @@
 #include <thread>    // std::thread, om twee dingen tegelijk te doen
 #include <atomic>    // std::atomic, een vlaggetje dat je veilig vanuit twee
                      // threads tegelijk mag lezen en schrijven
-#include "pijpen.h"
+#include "pipes.h"
 #include "net.h"
 
 // Zelfde truc als in server.cpp: de juiste headers per besturingssysteem.
