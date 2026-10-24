@@ -70,18 +70,19 @@ int main() {
     if (klant == INVALID_SOCKET) { std::cerr << "accept() mislukt.\n"; return 1; }
     std::cout << "Client verbonden! (geen login, geen sleuteluitwisseling)\n\n";
 
+    std::string invoer;    
     while (true) {
         std::cout << "> ";
         if (!std::getline(std::cin, invoer)) break;   // Ctrl-D / Ctrl-Z = einde
 
-        if (!sendPlat(verbinding, invoer)) {
+        if (!sendPlat(klant, invoer)) {
             std::cout << "Verzenden mislukt.\n";
             break;
         }
         if (invoer == "exit") break;
 
         std::string antwoord;
-        if (!recvPlat(verbinding, antwoord)) {
+        if (!recvPlat(klant, antwoord)) {
             std::cout << "Server heeft de verbinding gesloten.\n";
             break;
         }
