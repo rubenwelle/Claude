@@ -92,27 +92,20 @@ int main() {
     }
     std::cout << "Client verbonden!\n";
 
-    // Stap 6: het bericht van de client ontvangen.
-    // recv() zet de ontvangen bytes in onze buffer en geeft terug HOEVEEL
-    // bytes het waren (0 = client heeft opgehangen, negatief = fout).
-    char buffer[1024];
-    int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-    if (bytesReceived > 0) {
-        buffer[bytesReceived] = '\0';  // afsluitende nul, net als in C
-        std::cout << "Ontvangen van client: " << buffer << "\n";
-
-        // Stap 7: een antwoord terugsturen.
-        // .c_str() geeft de tekst als char-pointer, .size() de lengte.
-        std::string reply = "Server zegt: ik heb '" + std::string(buffer) + "' ontvangen!";
-        send(clientSocket, reply.c_str(), (int)reply.size(), 0);
-        std::cout << "Antwoord verstuurd.\n";
-    } else {
-        std::cerr << "Niets ontvangen of fout bij recv()\n";
+    while (true) {
+        sockaddr_in clientAdres{};
+        socklen_t lengte = sizeof(clientAdres);
+        SOCKET client = accept(luisterSocket, reinterpret_cast<sockaddr*>(&clientAdres), &lengte);
+        if (client == INVALID_SOCKET) {
+            std::cerr << "accept() mislukt\n";
+            continue;
+        }
+        std::cout << "--- Nieuwe verbinding ---\n";
+        behandelClient(client);
+        closesocket(client);
+        std::cout << "--- Verbinding gesloten ---\n\n";
     }
 
-    // Stap 8: opruimen. Sockets sluiten, net zoals je een bestand sluit.
-    closesocket(clientSocket);
-    closesocket(listenSocket);
 #ifdef _WIN32
     WSACleanup();  // Winsock weer afsluiten (tegenhanger van WSAStartup)
 #endif
