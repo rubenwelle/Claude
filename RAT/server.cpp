@@ -41,56 +41,43 @@ int main() {
     }
 #endif
 
-    // Stap 1: een socket maken.
-    //   AF_INET     = we gebruiken IPv4-adressen (zoals 127.0.0.1)
-    //   SOCK_STREAM = we willen TCP: een betrouwbare stream van bytes
-    //   0           = laat het systeem het juiste protocol kiezen (TCP)
-    SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (listenSocket == INVALID_SOCKET) {
-        std::cerr << "Kon geen socket maken\n";
+    // 1. Maak een luister-socket en koppel hem aan poort 3000 op 127.0.0.1.
+    SOCKET luister = socket(AF_INET, SOCK_STREAM, 0);
+    if (luister == INVALID_SOCKET) { std::cerr << "socket() mislukt.\n"; return 1; }
+
+    // SO_REUSEADDR: na het stoppen mag je de poort meteen weer gebruiken.
+    int aan = 1;
+    setsockopt(luister, SOL_SOCKET, SO_REUSEADDR,
+               reinterpret_cast<const char*>(&aan), sizeof(aan));
+
+    sockaddr_in adres{};
+    adres.sin_family      = AF_INET;
+    adres.sin_port        = htons(PORT);
+    inet_pton(AF_INET, SERVER_IP, &adres.sin_addr);
+
+    if (bind(luister, reinterpret_cast<sockaddr*>(&adres), sizeof(adres)) == SOCKET_ERROR) {
+        std::cerr << "bind() mislukt (draait de server al?).\n";
         return 1;
     }
+    if (listen(luister, 1) == SOCKET_ERROR) { std::cerr << "listen() mislukt.\n"; return 1; }
 
-    // Stap 2: het adres invullen waarop we willen luisteren.
-    // sockaddr_in is een struct (net als in C) met adresfamilie, poort en IP.
-    sockaddr_in address{};                 // {} zet alle velden op 0
-    address.sin_family      = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;  // luister op alle netwerkkaarten
-    // htons = "host to network short". Netwerken verwachten getallen in een
-    // vaste bytevolgorde (big-endian); htons zet ons getal daarin om.
-    address.sin_port        = htons(PORT);
+    std::cout << "=== PLATTE server (zonder versleuteling) ===\n"
+              << "Luistert op " << SERVER_IP << ":" << PORT << ". Wacht op een client...\n\n";
 
-    // Stap 3: bind() koppelt de socket aan dat adres + poort.
-    // Daarna "hoort" poort 5000 bij ons programma.
-    if (bind(listenSocket, (sockaddr*)&address, sizeof(address)) == SOCKET_ERROR) {
-        std::cerr << "bind() mislukt. Is poort " << PORT << " al in gebruik?\n";
-        closesocket(listenSocket);
-        return 1;
+    // 2. Wacht tot er een client verbindt. accept() geeft een NIEUWE socket
+    //    voor het gesprek met die ene client.
+    SOCKET klant = accept(luister, nullptr, nullptr);
+    if (klant == INVALID_SOCKET) { std::cerr << "accept() mislukt.\n"; return 1; }
+    std::cout << "Client verbonden! (geen login, geen sleuteluitwisseling)\n\n";
+
+    while (recvPlat(klant, bericht)) {
+
     }
-
-    // Stap 4: listen() zet de socket in "wachtstand" voor nieuwe verbindingen.
-    // Het getal 1 is hoeveel bellers er maximaal in de wachtrij mogen staan.
-    if (listen(listenSocket, 1) == SOCKET_ERROR) {
-        std::cerr << "listen() mislukt\n";
-        closesocket(listenSocket);
-        return 1;
-    }
-    std::cout << "Server luistert op poort " << PORT << "...\n";
-
-    while (true) {
-        sockaddr_in clientAdres{};
-        socklen_t lengte = sizeof(clientAdres);
-        SOCKET client = accept(luisterSocket, reinterpret_cast<sockaddr*>(&clientAdres), &lengte);
-        if (client == INVALID_SOCKET) {
-            std::cerr << "accept() mislukt\n";
-            continue;
-        }
-        std::cout << "--- Nieuwe verbinding ---\n";
-        behandelClient(client);
-        closesocket(client);
-        std::cout << "--- Verbinding gesloten ---\n\n";
-    }
-
+    
+    std::cout << "\nVerbinding gesloten.\n";
+    closesocket(klant);
+    closesocket(luister);
+    
 #ifdef _WIN32
     WSACleanup();  // Winsock weer afsluiten (tegenhanger van WSAStartup)
 #endif
