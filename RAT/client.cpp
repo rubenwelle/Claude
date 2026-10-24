@@ -49,7 +49,7 @@ int main() {
         return 1;
     }
   
-    std::atomic<bool> running{true};
+    std::atomic<bool> started{true};
   
     // 1. Maak een socket en verbind met de server op 127.0.0.1:3000.
     SOCKET verbinding = socket(AF_INET, SOCK_STREAM, 0);
@@ -88,12 +88,12 @@ int main() {
         // De hoofd-thread: lees wat jij typt en stuur het naar de shell.
         std::string invoer;
         invoer = bericht;
-        while (running && std::getline(std::cin, invoer)) {
+        while (started && std::getline(std::cin, invoer)) {
             if (!shell.writeLine(invoer)) break;   // pipe dicht
             if (invoer == "exit" || invoer == "quit") break;
         }     
         shell.closeInput();
-        if (lezer.joinable()) lezer.join();
+        if (reader.joinable()) lezer.join();
         shell.stop();      
     }
 
