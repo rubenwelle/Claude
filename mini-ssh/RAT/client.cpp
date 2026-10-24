@@ -20,9 +20,7 @@
     #define closesocket close
 #endif
 
-// 127.0.0.1 is een speciaal adres dat altijd "deze computer zelf" betekent
-// (ook wel "localhost" genoemd). Zo kunnen server en client op dezelfde pc
-// met elkaar praten zonder echt netwerk.
+// config connection settings
 const char* SERVER_IP = "127.0.0.1";
 const int   PORT      = 5000;  // moet hetzelfde zijn als in server.cpp!
 
@@ -36,14 +34,14 @@ int main() {
     }
 #endif
 
-    // Stap 1: een TCP-socket maken (zelfde soort als bij de server).
+    // Stap 1: een TCP-socket maken.
     SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == INVALID_SOCKET) {
         std::cerr << "Kon geen socket maken\n";
         return 1;
     }
 
-    // Stap 2: het adres van de SERVER invullen (waar willen we heen bellen?).
+    // Stap 2: het adres van de SERVER invullen.
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port   = htons(PORT);
@@ -51,7 +49,7 @@ int main() {
     // dat de socket-functies verwachten ("pton" = presentation to network).
     inet_pton(AF_INET, SERVER_IP, &serverAddress.sin_addr);
 
-    // Stap 3: connect() "belt" de server op. Hier gebeurt de TCP-handshake:
+    // Stap 3: connect() Hier gebeurt de TCP-handshake:
     // client en server spreken af dat ze een verbinding hebben.
     if (connect(sock, (sockaddr*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR) {
         std::cerr << "Kon geen verbinding maken. Draait de server wel?\n";
