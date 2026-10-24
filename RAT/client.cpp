@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <thread>    // std::thread, om twee dingen tegelijk te doen
 #include <atomic>    // std::atomic, een vlaggetje dat je veilig vanuit twee
