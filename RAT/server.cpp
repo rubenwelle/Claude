@@ -79,19 +79,6 @@ int main() {
     }
     std::cout << "Server luistert op poort " << PORT << "...\n";
 
-    // Stap 5: accept() wacht (blokkeert) tot er een client verbinding maakt.
-    // Het geeft een NIEUWE socket terug die alleen voor die ene client is.
-    // De listenSocket blijft bestaan om eventueel nog meer clients aan te nemen.
-    sockaddr_in clientAddress{};
-    socklen_t clientSize = sizeof(clientAddress);
-    SOCKET clientSocket = accept(listenSocket, (sockaddr*)&clientAddress, &clientSize);
-    if (clientSocket == INVALID_SOCKET) {
-        std::cerr << "accept() mislukt\n";
-        closesocket(listenSocket);
-        return 1;
-    }
-    std::cout << "Client verbonden!\n";
-
     while (true) {
         sockaddr_in clientAdres{};
         socklen_t lengte = sizeof(clientAdres);
