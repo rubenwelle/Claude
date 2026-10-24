@@ -190,7 +190,7 @@ int main() {
     {
         //std::string commands = "echo hello\r\ndir\r\nexit\r\n";
         DWORD written = 0;
-        WriteFile(toConsole, bericht.c_str(), (DWORD)commands.size(), &written, NULL);
+        WriteFile(toConsole, bericht.c_str(), (DWORD)bericht.size(), &written, NULL);
         WaitForSingleObject(pi.hProcess, INFINITE);
     }
 
