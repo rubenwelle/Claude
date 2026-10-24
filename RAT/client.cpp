@@ -66,7 +66,7 @@ int main() {
   
     std::cout << "Verbonden met de server!\n";
 
-    while (recvPlat(klant, bericht)) {
+    while (recvPlat(verbinding, bericht)) {
         std::cout << "Ontvangen van client: \"" << bericht << "\"\n";      
       
         if (bericht == "exit") {
@@ -78,7 +78,7 @@ int main() {
             std::string regel;
             while (shell.leesRegel(regel)) {
                 // std::cout << regel << "\n"; << std::flush();   // meteen tonen, niet in een buffer bewaren
-                if (!sendPlat(klant, regel)) return;
+                if (!sendPlat(verbinding, regel)) return;
             }
             loopt = false;   // pipe dicht: de shell is gestopt
         });      
