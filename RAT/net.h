@@ -86,7 +86,6 @@ inline bool recvFrame(SOCKET s, std::string& inhoud) {
 // leesbaar de lijn op. We printen hem er ook bij, zodat je ziet dat een
 // afluisteraar alles gewoon kan meelezen.
 inline bool sendPlat(SOCKET s, const std::string& tekst) {
-    std::cout << "  [over het netwerk, leesbaar: \"" << tekst << "\"]\n";
     return sendFrame(s, tekst);
 }
 inline bool recvPlat(SOCKET s, std::string& tekst) {
