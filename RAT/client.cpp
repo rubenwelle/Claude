@@ -22,10 +22,6 @@
     #define closesocket close
 #endif
 
-// config connection settings
-const char* SERVER_IP = "127.0.0.1";
-const int   PORT      = 5000;  // moet hetzelfde zijn als in server.cpp!
-
 int main() {
 #ifdef _WIN32
     // Winsock opstarten (alleen Windows), zie uitleg in server.cpp.
