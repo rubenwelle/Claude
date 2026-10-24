@@ -1,9 +1,0 @@
-=== PLATTE client (zonder versleuteling) ===
-Verbonden met 127.0.0.1:3000.
-Typ een regel en druk op Enter. Typ 'exit' om te stoppen.
-
->   [over het netwerk, leesbaar: "hallo wereld"]
-server zegt: HALLO WERELD
->   [over het netwerk, leesbaar: "exit"]
-
-Tot ziens.
